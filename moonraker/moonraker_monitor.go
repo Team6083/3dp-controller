@@ -5,21 +5,22 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"syscall"
 	"time"
 )
 
 type PrinterStatus string
 
 const (
-	Unknown    PrinterStatus = "unknown"
-	Idle       PrinterStatus = "idle"
-	PrePrint   PrinterStatus = "pre_print"
-	Printing   PrinterStatus = "printing"
-	ForcePause PrinterStatus = "force_pause"
-	Pause      PrinterStatus = "pause"
-	Error      PrinterStatus = "error"
-	Timeout    PrinterStatus = "timeout"
-	MonError   PrinterStatus = "mon_error"
+	Unknown      PrinterStatus = "unknown"
+	Idle         PrinterStatus = "idle"
+	PrePrint     PrinterStatus = "pre_print"
+	Printing     PrinterStatus = "printing"
+	ForcePause   PrinterStatus = "force_pause"
+	Pause        PrinterStatus = "pause"
+	Error        PrinterStatus = "error"
+	Disconnected PrinterStatus = "disconnected"
+	MonError     PrinterStatus = "mon_error"
 )
 
 type Monitor struct {
@@ -53,7 +54,7 @@ func NewMonitor(name string, printerURL string) (*Monitor, error) {
 	m.PrinterName = name
 	m.PrinterUrl = u
 
-	m.AllowPrint = false
+	m.AllowPrint = true
 	m.Status = Unknown
 
 	return m, nil
@@ -99,12 +100,11 @@ func (m *Monitor) update() {
 		m.VirtualSDCard = nil
 
 		var netErr net.Error
-		if errors.As(err, &netErr) && netErr.Timeout() {
-			// A timeout error occurred
-			m.Status = Timeout
-			fmt.Printf("Error: Printer %s Timeout!\n", m.PrinterName)
+		if (errors.As(err, &netErr) && netErr.Timeout()) ||
+			errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNRESET) {
+			m.Status = Disconnected
 		} else {
-			fmt.Println(err)
+			fmt.Printf("[%s] Error getting orinter objects: %s\n", m.PrinterName, err)
 			m.Status = MonError
 		}
 	} else {
@@ -148,7 +148,7 @@ func (m *Monitor) update() {
 		}
 
 		if m.Status == Printing && !printerShouldPrint {
-			fmt.Printf("Printer %s should not print now!!\n", m.PrinterName)
+			fmt.Printf("[%s] Printer should not print now!!\n", m.PrinterName)
 
 			if printDuration > m.NoPauseDuration {
 				m.Status = ForcePause
@@ -161,11 +161,11 @@ func (m *Monitor) update() {
 
 		// Use m.PrintStats.State to check real printer status
 		if realPrinterStatus == Printing && m.Status == ForcePause {
-			fmt.Printf("Pausing printer %s\n", m.PrinterName)
+			fmt.Printf("[%s] Pausing\n", m.PrinterName)
 
 			err := PausePrint(m.PrinterUrl)
 			if err != nil {
-				fmt.Printf("Error pausing the printer: %s\n", err)
+				fmt.Printf("[%s] Error pausing the printer: %s\n", m.PrinterName, err)
 			}
 		}
 
@@ -187,11 +187,11 @@ func (m *Monitor) update() {
 		if m.Status == ForcePause && m.AllowPrint && realPrinterStatus == Pause {
 			m.Status = Pause
 
-			fmt.Printf("Resuming printer %s\n", m.PrinterName)
+			fmt.Printf("[%s] Resuming\n", m.PrinterName)
 
 			err := ResumePrint(m.PrinterUrl)
 			if err != nil {
-				fmt.Printf("Error resuming the printer: %s\n", err)
+				fmt.Printf("[%s] Error resuming the printer: %s\n", m.PrinterName, err)
 			}
 
 			err = m.updateStatusMessage("")
@@ -200,9 +200,9 @@ func (m *Monitor) update() {
 			}
 		}
 
-		fmt.Printf("Printer Status: %s\n", m.Status)
-		fmt.Printf("%+v\n", status.Result.Status)
+		//fmt.Printf("%+v\n", status.Result.Status)
 	}
+	fmt.Printf("[%s] Status: %s\n", m.PrinterName, m.Status)
 }
 
 func (m *Monitor) updateStatusMessage(msg string) error {

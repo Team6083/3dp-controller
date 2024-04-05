@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"time"
+	"strconv"
 	"v400_monitor/moonraker"
 )
 
@@ -24,26 +24,57 @@ func main() {
 	termInput := make(chan string)
 	go getTerminalInput(termInput)
 
-	m, err := moonraker.NewMonitor("v400-4", "http://10.0.26.2:7125/")
+	config, err := LoadConfig("./config.yaml")
 	if err != nil {
 		panic(err)
 	}
 
-	m.NoPauseDuration = time.Second * 30
-	m.Start()
+	var monitors []*moonraker.Monitor
+
+	for _, p := range config.Printers {
+		fmt.Printf("%+v\n", p)
+
+		m, err := moonraker.NewMonitor(p.Name, p.Url)
+		if err != nil {
+			panic(err)
+		}
+
+		if p.ControllerFailMode == FailModeNoPrint {
+			m.AllowPrint = false
+		}
+
+		m.NoPauseDuration = config.NoPauseDuration
+		m.Start()
+
+		monitors = append(monitors, m)
+	}
 
 	for {
 		select {
 		case inputStr := <-termInput:
-			if inputStr == "1" {
-				fmt.Println("Setting AllowPrint to true")
-				m.AllowPrint = true
-			} else if inputStr == "0" {
-				fmt.Println("Setting AllowPrint to false")
-				m.AllowPrint = false
+			num, err := strconv.ParseInt(inputStr, 10, 32)
+			if err != nil {
+				fmt.Println(err)
+			} else {
+				if int(num) >= len(monitors) {
+					println("Error: Printer no. %d not found!\n", num)
+				} else {
+					m := monitors[int(num)]
+
+					if m.AllowPrint {
+						fmt.Println("Setting AllowPrint to false")
+						m.AllowPrint = false
+					} else {
+						fmt.Println("Setting AllowPrint to true")
+						m.AllowPrint = true
+					}
+				}
 			}
 		case s := <-interrupt:
-			m.Stop()
+			for _, m := range monitors {
+				m.Stop()
+			}
+
 			fmt.Println("Got signal:", s)
 			return
 		}

@@ -1,0 +1,33 @@
+server:
+  bind: "0.0.0.0"
+  port: 8000
+
+no_pause_duration: 5m
+
+display_messages:
+  will_pause_message: Printer will stop in %s since this job is not registered
+  pause_message: Printer stop due to non registered job
+
+
+printers:
+  - name: v400-1
+    url: http://10.0.120.12
+    controller_fail_mode: "allow_print"
+  - name: v400-2
+    url: http://10.0.120.13
+    controller_fail_mode: "allow_print"
+  - name: v400-3
+    url: http://10.0.120.14
+    controller_fail_mode: "allow_print"
+  - name: v400-4
+    url: http://10.0.120.15
+    controller_fail_mode: "allow_print"
+  - name: v400-5
+    url: http://10.0.120.16
+    controller_fail_mode: "allow_print"
+  - name: virtual1
+    url: http://10.0.26.2:7125/
+    controller_fail_mode: "no_print"
+  - name: virtual2
+    url: http://10.0.26.2:6125/
+    controller_fail_mode: "no_print"
