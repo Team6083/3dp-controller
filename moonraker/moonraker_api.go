@@ -1,6 +1,7 @@
 package moonraker
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -51,12 +52,13 @@ type PrinterObjectsResponse struct {
 	} `json:"result"`
 }
 
-func GetPrinterObjects(printerURL *url.URL) (*PrinterObjectsResponse, error) {
-	client := http.Client{
-		Timeout: 5 * time.Second,
-	}
+func GetPrinterObjects(ctx context.Context) (*PrinterObjectsResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	moonrakerAPIUrl := ctx.Value("moonrakerAPIUrl").(*url.URL)
 
-	u := printerURL.JoinPath("/printer/objects/query")
+	// build URL
+	u := moonrakerAPIUrl.JoinPath("/printer/objects/query")
 
 	query := u.Query()
 	query.Set("print_stats", "")
@@ -64,10 +66,16 @@ func GetPrinterObjects(printerURL *url.URL) (*PrinterObjectsResponse, error) {
 	query.Set("display_status", "")
 	query.Set("toolhead", "")
 	query.Set("virtual_sdcard", "")
-
 	u.RawQuery = query.Encode()
 
-	resp, err := client.Get(u.String())
+	// build request
+	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// do request
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +88,6 @@ func GetPrinterObjects(printerURL *url.URL) (*PrinterObjectsResponse, error) {
 	}(resp.Body)
 
 	out := new(PrinterObjectsResponse)
-
 	err = json.NewDecoder(resp.Body).Decode(out)
 	if err != nil {
 		return nil, err
@@ -89,10 +96,23 @@ func GetPrinterObjects(printerURL *url.URL) (*PrinterObjectsResponse, error) {
 	return out, nil
 }
 
-func PausePrint(printerURL *url.URL) error {
-	u := printerURL.JoinPath("/printer/print/pause")
+func PausePrint(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	moonrakerAPIUrl := ctx.Value("moonrakerAPIUrl").(*url.URL)
 
-	resp, err := http.Post(u.String(), "application/json", nil)
+	// build URL
+	u := moonrakerAPIUrl.JoinPath("/printer/print/pause")
+
+	// build request
+	req, err := http.NewRequestWithContext(ctx, "POST", u.String(), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// do request
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -114,10 +134,23 @@ func PausePrint(printerURL *url.URL) error {
 	return nil
 }
 
-func ResumePrint(printerURL *url.URL) error {
-	u := printerURL.JoinPath("/printer/print/resume")
+func ResumePrint(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	moonrakerAPIUrl := ctx.Value("moonrakerAPIUrl").(*url.URL)
 
-	resp, err := http.Post(u.String(), "application/json", nil)
+	// build URL
+	u := moonrakerAPIUrl.JoinPath("/printer/print/resume")
+
+	// build request
+	req, err := http.NewRequestWithContext(ctx, "POST", u.String(), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// do request
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -139,14 +172,22 @@ func ResumePrint(printerURL *url.URL) error {
 	return nil
 }
 
-func RunGcode(printerURL *url.URL, script string) error {
-	u := printerURL.JoinPath("/printer/gcode/script")
+func RunGcode(ctx context.Context, script string) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	moonrakerAPIUrl := ctx.Value("moonrakerAPIUrl").(*url.URL)
 
+	u := moonrakerAPIUrl.JoinPath("/printer/gcode/script")
 	query := u.Query()
 	query.Set("script", script)
 	u.RawQuery = query.Encode()
 
-	resp, err := http.Get(u.String())
+	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -168,6 +209,6 @@ func RunGcode(printerURL *url.URL, script string) error {
 	return nil
 }
 
-func SetStatusMessage(printerURL *url.URL, msg string) error {
-	return RunGcode(printerURL, "M117 "+msg)
+func SetStatusMessage(ctx context.Context, msg string) error {
+	return RunGcode(ctx, "M117 "+msg)
 }

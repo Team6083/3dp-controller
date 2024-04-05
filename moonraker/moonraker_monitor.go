@@ -1,6 +1,7 @@
 package moonraker
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -39,8 +40,8 @@ type Monitor struct {
 	PrintStats    *PrinterObjectPrintStats
 	VirtualSDCard *PrinterObjectVirtualSDCard
 
-	ticker      *time.Ticker
-	stopPolling chan bool
+	ctx        context.Context
+	cancelFunc context.CancelFunc
 }
 
 func NewMonitor(name string, printerURL string) (*Monitor, error) {
@@ -60,24 +61,28 @@ func NewMonitor(name string, printerURL string) (*Monitor, error) {
 	return m, nil
 }
 
-func (m *Monitor) Start() {
-	if m.ticker != nil {
+func (m *Monitor) Start(ctx context.Context) {
+	if m.ctx != nil {
 		return
 	}
 
-	m.ticker = time.NewTicker(5 * time.Second)
-	m.stopPolling = make(chan bool)
+	ctx = context.WithValue(ctx, "moonrakerAPIUrl", m.PrinterUrl)
+
+	ctx, cancel := context.WithCancel(ctx)
+	m.ctx = ctx
+	m.cancelFunc = cancel
+
+	ticker := time.NewTicker(5 * time.Second)
 
 	go func() {
 		m.update()
 
 		for {
 			select {
-			case <-m.stopPolling:
-				m.ticker.Stop()
-				m.ticker = nil
+			case <-ctx.Done():
+				ticker.Stop()
 				return
-			case <-m.ticker.C:
+			case <-ticker.C:
 				m.update()
 			}
 		}
@@ -85,11 +90,16 @@ func (m *Monitor) Start() {
 }
 
 func (m *Monitor) Stop() {
-	m.stopPolling <- true
+	if m.ctx != nil {
+		m.cancelFunc()
+
+		m.ctx = nil
+		m.cancelFunc = nil
+	}
 }
 
 func (m *Monitor) update() {
-	status, err := GetPrinterObjects(m.PrinterUrl)
+	status, err := GetPrinterObjects(m.ctx)
 
 	m.LastUpdateTime = time.Now()
 
@@ -163,7 +173,7 @@ func (m *Monitor) update() {
 		if realPrinterStatus == Printing && m.Status == ForcePause {
 			fmt.Printf("[%s] Pausing\n", m.PrinterName)
 
-			err := PausePrint(m.PrinterUrl)
+			err := PausePrint(m.ctx)
 			if err != nil {
 				fmt.Printf("[%s] Error pausing the printer: %s\n", m.PrinterName, err)
 			}
@@ -189,7 +199,7 @@ func (m *Monitor) update() {
 
 			fmt.Printf("[%s] Resuming\n", m.PrinterName)
 
-			err := ResumePrint(m.PrinterUrl)
+			err := ResumePrint(m.ctx)
 			if err != nil {
 				fmt.Printf("[%s] Error resuming the printer: %s\n", m.PrinterName, err)
 			}
@@ -210,5 +220,5 @@ func (m *Monitor) updateStatusMessage(msg string) error {
 		return nil
 	}
 
-	return SetStatusMessage(m.PrinterUrl, msg)
+	return SetStatusMessage(m.ctx, msg)
 }

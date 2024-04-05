@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -31,6 +32,8 @@ func main() {
 
 	var monitors []*moonraker.Monitor
 
+	ctx := context.Background()
+
 	for _, p := range config.Printers {
 		fmt.Printf("%+v\n", p)
 
@@ -44,7 +47,7 @@ func main() {
 		}
 
 		m.NoPauseDuration = config.NoPauseDuration
-		m.Start()
+		m.Start(ctx)
 
 		monitors = append(monitors, m)
 	}
