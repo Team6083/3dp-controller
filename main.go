@@ -3,10 +3,13 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
+	"go.uber.org/zap"
 	"os"
 	"os/signal"
 	"strconv"
+	"syscall"
 	"v400_monitor/moonraker"
 )
 
@@ -19,6 +22,20 @@ func getTerminalInput(input chan string) {
 }
 
 func main() {
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+
+	defer func(logger *zap.Logger) {
+		err := logger.Sync()
+		if err != nil && !errors.Is(err, syscall.ENOTTY) {
+			panic(err)
+		}
+	}(logger)
+
+	sugar := logger.Sugar()
+
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
@@ -35,9 +52,9 @@ func main() {
 	ctx := context.Background()
 
 	for _, p := range config.Printers {
-		fmt.Printf("%+v\n", p)
-
-		m, err := moonraker.NewMonitor(p.Name, p.Url)
+		m, err := moonraker.NewMonitor(p.Name, p.Url, sugar.With(
+			"PrinterName", p.Name,
+		))
 		if err != nil {
 			panic(err)
 		}
@@ -60,7 +77,7 @@ func main() {
 				fmt.Println(err)
 			} else {
 				if int(num) >= len(monitors) {
-					println("Error: Printer no. %d not found!\n", num)
+					fmt.Printf("Error: Printer no. %d not found!\n", num)
 				} else {
 					m := monitors[int(num)]
 

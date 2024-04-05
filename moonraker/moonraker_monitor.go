@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go.uber.org/zap"
 	"net"
 	"net/url"
 	"syscall"
@@ -28,6 +29,8 @@ type Monitor struct {
 	PrinterName string
 	PrinterUrl  *url.URL
 
+	logger *zap.SugaredLogger
+
 	NoPauseDuration time.Duration
 
 	AllowPrint bool
@@ -44,8 +47,10 @@ type Monitor struct {
 	cancelFunc context.CancelFunc
 }
 
-func NewMonitor(name string, printerURL string) (*Monitor, error) {
+func NewMonitor(name string, printerURL string, logger *zap.SugaredLogger) (*Monitor, error) {
 	m := new(Monitor)
+
+	m.logger = logger
 
 	u, err := url.Parse(printerURL)
 	if err != nil {
@@ -114,7 +119,7 @@ func (m *Monitor) update() {
 			errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNRESET) {
 			m.Status = Disconnected
 		} else {
-			fmt.Printf("[%s] Error getting orinter objects: %s\n", m.PrinterName, err)
+			m.logger.Errorf("Error getting orinter objects: %s\n", err)
 			m.Status = MonError
 		}
 	} else {
@@ -158,7 +163,7 @@ func (m *Monitor) update() {
 		}
 
 		if m.Status == Printing && !printerShouldPrint {
-			fmt.Printf("[%s] Printer should not print now!!\n", m.PrinterName)
+			m.logger.Infoln("Printer should not print now!!")
 
 			if printDuration > m.NoPauseDuration {
 				m.Status = ForcePause
@@ -171,11 +176,11 @@ func (m *Monitor) update() {
 
 		// Use m.PrintStats.State to check real printer status
 		if realPrinterStatus == Printing && m.Status == ForcePause {
-			fmt.Printf("[%s] Pausing\n", m.PrinterName)
+			m.logger.Infoln("Pausing")
 
 			err := PausePrint(m.ctx)
 			if err != nil {
-				fmt.Printf("[%s] Error pausing the printer: %s\n", m.PrinterName, err)
+				m.logger.Errorf("Error pausing the printer: %s\n", err)
 			}
 		}
 
@@ -184,12 +189,12 @@ func (m *Monitor) update() {
 
 			err := m.updateStatusMessage(fmt.Sprintf("Will pause after %s", remDuration.String())) // 請進行使用登記，否則將於%s後暫停工作
 			if err != nil {
-				fmt.Println(err)
+				m.logger.Errorln(err)
 			}
 		} else if m.Status == ForcePause {
 			err := m.updateStatusMessage("No reg, force pause") // 無使用登記，已暫停列印工作
 			if err != nil {
-				fmt.Println(err)
+				m.logger.Errorln(err)
 			}
 		}
 
@@ -197,22 +202,22 @@ func (m *Monitor) update() {
 		if m.Status == ForcePause && m.AllowPrint && realPrinterStatus == Pause {
 			m.Status = Pause
 
-			fmt.Printf("[%s] Resuming\n", m.PrinterName)
+			m.logger.Infoln("Resuming")
 
 			err := ResumePrint(m.ctx)
 			if err != nil {
-				fmt.Printf("[%s] Error resuming the printer: %s\n", m.PrinterName, err)
+				m.logger.Errorf("Error resuming the printer: %s\n", err)
 			}
 
 			err = m.updateStatusMessage("")
 			if err != nil {
-				fmt.Println(err)
+				m.logger.Errorln(err)
 			}
 		}
 
-		//fmt.Printf("%+v\n", status.Result.Status)
+		//m.logger.Debugf("%+v\n", status.Result.Status)
 	}
-	fmt.Printf("[%s] Status: %s\n", m.PrinterName, m.Status)
+	m.logger.Debugf("Status: %s\n", m.Status)
 }
 
 func (m *Monitor) updateStatusMessage(msg string) error {

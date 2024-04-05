@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+// Query Printer Object Status
+
 type PrinterObjectDisplayStatus struct {
 	Message  string  `json:"message"`
 	Progress float32 `json:"progress"`
@@ -80,12 +82,7 @@ func GetPrinterObjects(ctx context.Context) (*PrinterObjectsResponse, error) {
 		return nil, err
 	}
 
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			fmt.Println(err)
-		}
-	}(resp.Body)
+	defer resp.Body.Close()
 
 	out := new(PrinterObjectsResponse)
 	err = json.NewDecoder(resp.Body).Decode(out)
@@ -95,6 +92,54 @@ func GetPrinterObjects(ctx context.Context) (*PrinterObjectsResponse, error) {
 
 	return out, nil
 }
+
+// Get Klippy host information
+
+type GetKlippyHostInfoResponse struct {
+	Result struct {
+		State        string `json:"state"`
+		StateMessage string `json:"state_message"`
+		HostName     string `json:"hostname"`
+		SWVersion    string `json:"software_version"`
+		CPUInfo      string `json:"cpu_info"`
+		KlipperPath  string `json:"klipper_path"`
+		PythonPath   string `json:"python_path"`
+		LogFile      string `json:"log_file"`
+		ConfigFile   string `json:"config_file"`
+	} `json:"result"`
+}
+
+func GetKlippyHostInfo(ctx context.Context) (*GetKlippyHostInfoResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	moonrakerAPIUrl := ctx.Value("moonrakerAPIUrl").(*url.URL)
+
+	u := moonrakerAPIUrl.JoinPath("/printer/info")
+
+	// build request
+	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// do request
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	out := new(GetKlippyHostInfoResponse)
+	err = json.NewDecoder(resp.Body).Decode(out)
+	if err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
+// Pause a Print
 
 func PausePrint(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -117,12 +162,7 @@ func PausePrint(ctx context.Context) error {
 		return err
 	}
 
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			fmt.Println(err)
-		}
-	}(resp.Body)
+	defer resp.Body.Close()
 
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -133,6 +173,8 @@ func PausePrint(ctx context.Context) error {
 
 	return nil
 }
+
+// Resume a Print
 
 func ResumePrint(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -155,12 +197,7 @@ func ResumePrint(ctx context.Context) error {
 		return err
 	}
 
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			fmt.Println(err)
-		}
-	}(resp.Body)
+	defer resp.Body.Close()
 
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -171,6 +208,8 @@ func ResumePrint(ctx context.Context) error {
 
 	return nil
 }
+
+// Run a GCode
 
 func RunGcode(ctx context.Context, script string) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -192,12 +231,7 @@ func RunGcode(ctx context.Context, script string) error {
 		return err
 	}
 
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			fmt.Println(err)
-		}
-	}(resp.Body)
+	defer resp.Body.Close()
 
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
