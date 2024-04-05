@@ -3,8 +3,7 @@ package moonraker
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"io"
+	"errors"
 	"net/http"
 	"net/url"
 	"time"
@@ -141,6 +140,10 @@ func GetKlippyHostInfo(ctx context.Context) (*GetKlippyHostInfoResponse, error) 
 
 // Pause a Print
 
+type PausePrintResponse struct {
+	Result string `json:"result"`
+}
+
 func PausePrint(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -164,17 +167,24 @@ func PausePrint(ctx context.Context) error {
 
 	defer resp.Body.Close()
 
-	b, err := io.ReadAll(resp.Body)
+	out := new(PausePrintResponse)
+	err = json.NewDecoder(resp.Body).Decode(out)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("Pause " + string(b))
+	if out.Result != "ok" {
+		return errors.New(out.Result)
+	}
 
 	return nil
 }
 
 // Resume a Print
+
+type ResumePrintResponse struct {
+	Result string `json:"result"`
+}
 
 func ResumePrint(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -199,20 +209,27 @@ func ResumePrint(ctx context.Context) error {
 
 	defer resp.Body.Close()
 
-	b, err := io.ReadAll(resp.Body)
+	out := new(ResumePrintResponse)
+	err = json.NewDecoder(resp.Body).Decode(out)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("Resume " + string(b))
+	if out.Result != "ok" {
+		return errors.New(out.Result)
+	}
 
 	return nil
 }
 
 // Run a GCode
 
+type RunGcodeResponse struct {
+	Result string `json:"result"`
+}
+
 func RunGcode(ctx context.Context, script string) error {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	moonrakerAPIUrl := ctx.Value("moonrakerAPIUrl").(*url.URL)
 
@@ -233,12 +250,15 @@ func RunGcode(ctx context.Context, script string) error {
 
 	defer resp.Body.Close()
 
-	b, err := io.ReadAll(resp.Body)
+	out := new(RunGcodeResponse)
+	err = json.NewDecoder(resp.Body).Decode(out)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("RunGcode " + string(b))
+	if out.Result != "ok" {
+		return errors.New(out.Result)
+	}
 
 	return nil
 }

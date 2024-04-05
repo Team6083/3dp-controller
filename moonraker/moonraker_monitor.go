@@ -187,11 +187,13 @@ func (m *Monitor) update() {
 		if m.Status == Printing && !printerShouldPrint {
 			remDuration := (m.NoPauseDuration - printDuration).Round(time.Second)
 
+			// TODO: Use template
 			err := m.updateStatusMessage(fmt.Sprintf("Will pause after %s", remDuration.String())) // 請進行使用登記，否則將於%s後暫停工作
 			if err != nil {
 				m.logger.Errorln(err)
 			}
 		} else if m.Status == ForcePause {
+			// TODO: Use template
 			err := m.updateStatusMessage("No reg, force pause") // 無使用登記，已暫停列印工作
 			if err != nil {
 				m.logger.Errorln(err)
@@ -214,8 +216,6 @@ func (m *Monitor) update() {
 				m.logger.Errorln(err)
 			}
 		}
-
-		//m.logger.Debugf("%+v\n", status.Result.Status)
 	}
 	m.logger.Debugf("Status: %s\n", m.Status)
 }
