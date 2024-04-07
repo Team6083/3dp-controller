@@ -4,11 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
 )
 
+type APIError struct {
+	Code      int    `json:"code"`
+	Message   string `json:"message"`
+	Traceback string `json:"traceback"`
+}
+
+// ---------------------------
 // Query Printer Object Status
 
 type PrinterObjectDisplayStatus struct {
@@ -30,6 +38,14 @@ type PrinterObjectPrintStats struct {
 	Message       string  `json:"message"`
 }
 
+func (p *PrinterObjectPrintStats) GetPrintDuration() time.Duration {
+	return time.Duration(p.PrintDuration * float32(time.Second))
+}
+
+func (p *PrinterObjectPrintStats) GetTotalDuration() time.Duration {
+	return time.Duration(p.TotalDuration * float32(time.Second))
+}
+
 type PrinterObjectToolhead struct {
 	PrintTime          float32 `json:"print_time"`
 	EstimatedPrintTime float32 `json:"estimated_print_time"`
@@ -40,17 +56,25 @@ type PrinterObjectVirtualSDCard struct {
 	IsActive bool    `json:"is_active"`
 }
 
+type PrinterObjectWebhooks struct {
+	State        string `json:"state"`
+	StateMessage string `json:"state_message"`
+}
+
+//goland:noinspection SpellCheckingInspection
 type PrinterObjectsResponse struct {
 	Result struct {
 		EventTime float32 `json:"eventtime"`
-		Status    struct {
+		Status    *struct {
 			DisplayStatus PrinterObjectDisplayStatus `json:"display_status"`
 			IdleTimeout   PrinterObjectIdleTimeout   `json:"idle_timeout"`
 			PrintStats    PrinterObjectPrintStats    `json:"print_stats"`
 			Toolhead      PrinterObjectToolhead      `json:"toolhead"`
 			VirtualSDCard PrinterObjectVirtualSDCard `json:"virtual_sdcard"`
+			Webhooks      PrinterObjectWebhooks      `json:"webhooks"`
 		} `json:"status"`
 	} `json:"result"`
+	Error *APIError `json:"error"`
 }
 
 func GetPrinterObjects(ctx context.Context) (*PrinterObjectsResponse, error) {
@@ -62,6 +86,7 @@ func GetPrinterObjects(ctx context.Context) (*PrinterObjectsResponse, error) {
 	u := moonrakerAPIUrl.JoinPath("/printer/objects/query")
 
 	query := u.Query()
+	query.Set("webhooks", "")
 	query.Set("print_stats", "")
 	query.Set("idle_timeout", "")
 	query.Set("display_status", "")
@@ -92,20 +117,23 @@ func GetPrinterObjects(ctx context.Context) (*PrinterObjectsResponse, error) {
 	return out, nil
 }
 
+// ---------------------------
 // Get Klippy host information
 
+type KlipperInfo struct {
+	State        string `json:"state"`
+	StateMessage string `json:"state_message"`
+	HostName     string `json:"hostname"`
+	SWVersion    string `json:"software_version"`
+	CPUInfo      string `json:"cpu_info"`
+	KlipperPath  string `json:"klipper_path"`
+	PythonPath   string `json:"python_path"`
+	LogFile      string `json:"log_file"`
+	ConfigFile   string `json:"config_file"`
+}
+
 type GetKlippyHostInfoResponse struct {
-	Result struct {
-		State        string `json:"state"`
-		StateMessage string `json:"state_message"`
-		HostName     string `json:"hostname"`
-		SWVersion    string `json:"software_version"`
-		CPUInfo      string `json:"cpu_info"`
-		KlipperPath  string `json:"klipper_path"`
-		PythonPath   string `json:"python_path"`
-		LogFile      string `json:"log_file"`
-		ConfigFile   string `json:"config_file"`
-	} `json:"result"`
+	Result KlipperInfo `json:"result"`
 }
 
 func GetKlippyHostInfo(ctx context.Context) (*GetKlippyHostInfoResponse, error) {
@@ -138,6 +166,7 @@ func GetKlippyHostInfo(ctx context.Context) (*GetKlippyHostInfoResponse, error) 
 	return out, nil
 }
 
+// -------------
 // Pause a Print
 
 type PausePrintResponse struct {
@@ -180,6 +209,7 @@ func PausePrint(ctx context.Context) error {
 	return nil
 }
 
+// --------------
 // Resume a Print
 
 type ResumePrintResponse struct {
@@ -222,13 +252,14 @@ func ResumePrint(ctx context.Context) error {
 	return nil
 }
 
+// -----------
 // Run a GCode
 
-type RunGcodeResponse struct {
+type RunGCodeResponse struct {
 	Result string `json:"result"`
 }
 
-func RunGcode(ctx context.Context, script string) error {
+func RunGCode(ctx context.Context, script string) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	moonrakerAPIUrl := ctx.Value("moonrakerAPIUrl").(*url.URL)
@@ -250,7 +281,7 @@ func RunGcode(ctx context.Context, script string) error {
 
 	defer resp.Body.Close()
 
-	out := new(RunGcodeResponse)
+	out := new(RunGCodeResponse)
 	err = json.NewDecoder(resp.Body).Decode(out)
 	if err != nil {
 		return err
@@ -264,5 +295,157 @@ func RunGcode(ctx context.Context, script string) error {
 }
 
 func SetStatusMessage(ctx context.Context, msg string) error {
-	return RunGcode(ctx, "M117 "+msg)
+	return RunGCode(ctx, "M117 "+msg)
+}
+
+// ------------------
+// Get Gcode Metadata
+
+type GCodeMetadata struct {
+	PrintStartTime   float32 `json:"print_start_time"`
+	JobId            string  `json:"job_id"`
+	Size             int     `json:"size"`
+	Modified         float32 `json:"modified"`
+	UUID             string  `json:"uuid"`
+	Slicer           string  `json:"slicer"`
+	SlicerVersion    string  `json:"slicer_version"`
+	LayerHeight      float32 `json:"layer_height"`
+	FirstLayerHeight float32 `json:"first_layer_height"`
+	ObjectHeight     float32 `json:"object_height"`
+	FilamentTotal    float32 `json:"filament_total"`
+	EstimatedTime    int     `json:"estimated_time"`
+	Thumbnails       []struct {
+		Width        int    `json:"width"`
+		Height       int    `json:"height"`
+		Size         int    `json:"size"`
+		RelativePath string `json:"relative_path"`
+	} `json:"thumbnails"`
+	GCodeStartByte float32 `json:"gcode_start_byte"`
+	GCodeEndByte   float32 `json:"gcode_end_byte"`
+	Filename       string  `json:"filename"`
+}
+
+type GetGCodeMetaResponse struct {
+	Result *GCodeMetadata `json:"result"`
+	Error  *APIError      `json:"error"`
+}
+
+func GetGcodeMetadata(ctx context.Context, fileName string) (*GetGCodeMetaResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	moonrakerAPIUrl := ctx.Value("moonrakerAPIUrl").(*url.URL)
+
+	u := moonrakerAPIUrl.JoinPath("/server/files/metadata")
+
+	query := u.Query()
+	query.Set("filename", fileName)
+	u.RawQuery = query.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	out := new(GetGCodeMetaResponse)
+	err = json.NewDecoder(resp.Body).Decode(out)
+	if err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
+// ------------
+// Get Job List
+
+type Job struct {
+	JobId         string         `json:"job_id"`
+	Exists        bool           `json:"exists"`
+	StartTime     float32        `json:"start_time"`
+	EndTime       float32        `json:"end_time"`
+	TotalDuration float32        `json:"total_duration"`
+	PrintDuration float32        `json:"print_duration"`
+	FilamentUsed  float32        `json:"filament_used"`
+	Filename      string         `json:"filename"`
+	Metadata      *GCodeMetadata `json:"metadata"`
+	Status        string         `json:"status"`
+}
+
+type GetJobListResponse struct {
+	Result *struct {
+		Count int   `json:"count"`
+		Jobs  []Job `json:"jobs"`
+	} `json:"result"`
+}
+
+type GetJobListOrder string
+
+const (
+	OrderAsc  GetJobListOrder = "asc"
+	OrderDesc GetJobListOrder = "desc"
+)
+
+type GetJobListParams struct {
+	Limit  *int
+	Start  *int
+	Since  *time.Time
+	Before *time.Time
+	Order  GetJobListOrder
+}
+
+func GetJobList(ctx context.Context, params GetJobListParams) (*GetJobListResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	moonrakerAPIUrl := ctx.Value("moonrakerAPIUrl").(*url.URL)
+
+	u := moonrakerAPIUrl.JoinPath("/server/history/list")
+
+	query := u.Query()
+	if params.Limit != nil {
+		query.Set("limit", fmt.Sprintf("%d", *params.Limit))
+	}
+	if params.Start != nil {
+		query.Set("start", fmt.Sprintf("%d", *params.Start))
+	}
+	if params.Since != nil {
+		query.Set("since", fmt.Sprintf("%d", (*params.Since).UnixMilli()*1000))
+	}
+	if params.Before != nil {
+		query.Set("before", fmt.Sprintf("%d", (*params.Before).UnixMilli()*1000))
+	}
+	if params.Order == OrderAsc {
+		query.Set("order", "asc")
+	}
+	u.RawQuery = query.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+	out := new(GetJobListResponse)
+	err = json.NewDecoder(resp.Body).Decode(out)
+	if err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
+func GetLatestJob(ctx context.Context) (*GetJobListResponse, error) {
+	limit := 1
+	return GetJobList(ctx, GetJobListParams{Limit: &limit})
 }

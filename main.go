@@ -52,9 +52,11 @@ func main() {
 	ctx := context.Background()
 
 	for _, p := range config.Printers {
-		m, err := moonraker.NewMonitor(p.Name, p.Url, sugar.With(
-			"PrinterName", p.Name,
-		))
+		monConfig := moonraker.MonitorConfig{
+			NoPauseDuration: config.NoPauseDuration,
+		}
+
+		m, err := moonraker.NewMonitor(p.Name, p.Url, monConfig, sugar.With("PrinterName", p.Name))
 		if err != nil {
 			panic(err)
 		}
@@ -63,7 +65,6 @@ func main() {
 			m.AllowPrint = false
 		}
 
-		m.NoPauseDuration = config.NoPauseDuration
 		m.Start(ctx)
 
 		monitors = append(monitors, m)
