@@ -256,7 +256,8 @@ func ResumePrint(ctx context.Context) error {
 // Run a GCode
 
 type RunGCodeResponse struct {
-	Result string `json:"result"`
+	Result string    `json:"result"`
+	Error  *APIError `json:"error"`
 }
 
 func RunGCode(ctx context.Context, script string) error {
@@ -288,7 +289,7 @@ func RunGCode(ctx context.Context, script string) error {
 	}
 
 	if out.Result != "ok" {
-		return errors.New(out.Result)
+		return fmt.Errorf("api response %d %s", out.Error.Code, out.Error.Message)
 	}
 
 	return nil

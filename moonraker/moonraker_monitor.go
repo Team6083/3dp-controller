@@ -51,6 +51,7 @@ type Monitor struct {
 	registeredJobId    string
 	allowNoRegPrint    bool
 	jobPausedByMonitor bool
+	lastMessage        string
 
 	state          PrinterState
 	lastUpdateTime time.Time
@@ -81,6 +82,29 @@ func (m *Monitor) LastUpdateTime() time.Time {
 
 func (m *Monitor) LatestJob() *Job {
 	return m.latestJob
+}
+
+func (m *Monitor) SetRegisteredJobId(jobId string) {
+	m.registeredJobId = jobId
+
+	if m.ctx != nil && jobId != "" {
+		err := m.clearMessage()
+
+		if err != nil {
+			m.logger.Errorf("Error clearing message: %s\n", err)
+		}
+	}
+}
+
+func (m *Monitor) SetAllowNoRegPrint(allowNoRegPrint bool) {
+	m.allowNoRegPrint = allowNoRegPrint
+
+	if m.ctx != nil && allowNoRegPrint {
+		err := m.clearMessage()
+		if err != nil {
+			m.logger.Errorf("Error clearing message: %s\n", err)
+		}
+	}
 }
 
 func NewMonitor(name string, printerURL string, config MonitorConfig, logger *zap.SugaredLogger) (*Monitor, error) {
@@ -184,19 +208,6 @@ func (m *Monitor) GetLoadedFile() (*GCodeMetadata, error) {
 	}
 
 	return metaResponse.Result, nil
-}
-
-func (m *Monitor) getLatestJob() (*Job, error) {
-	resp, err := GetLatestJob(m.ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.Error != nil {
-		return nil, fmt.Errorf("api response %d %s", resp.Error.Code, resp.Error.Message)
-	}
-
-	return &(resp.Result.Jobs[0]), nil
 }
 
 func (m *Monitor) update() {
@@ -346,5 +357,28 @@ func (m *Monitor) updateStatusMessage(msg string) error {
 		return nil
 	}
 
+	m.lastMessage = msg
+
 	return SetStatusMessage(m.ctx, msg)
+}
+
+func (m *Monitor) clearMessage() error {
+	if m.lastMessage == m.printerObjects.DisplayStatus.Message {
+		return m.updateStatusMessage("")
+	}
+
+	return nil
+}
+
+func (m *Monitor) getLatestJob() (*Job, error) {
+	resp, err := GetLatestJob(m.ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.Error != nil {
+		return nil, fmt.Errorf("api response %d %s", resp.Error.Code, resp.Error.Message)
+	}
+
+	return &(resp.Result.Jobs[0]), nil
 }

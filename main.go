@@ -8,6 +8,8 @@ import (
 	"go.uber.org/zap"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"v400_monitor/moonraker"
 )
@@ -21,6 +23,8 @@ func getTerminalInput(input chan string) {
 }
 
 func main() {
+	var logger *zap.Logger
+
 	logger, err := zap.NewDevelopment()
 	if err != nil {
 		panic(err)
@@ -60,6 +64,8 @@ func main() {
 			panic(err)
 		}
 
+		m.SetAllowNoRegPrint(p.ControllerFailMode != FailModeNoPrint)
+
 		m.Start(ctx)
 
 		monitors = append(monitors, m)
@@ -68,7 +74,23 @@ func main() {
 	for {
 		select {
 		case inputStr := <-termInput:
-			fmt.Println(inputStr)
+			input := strings.Split(inputStr, " ")
+			if len(input) < 1 {
+				fmt.Println("Usage: <printer_idx> [<job_id>]")
+			} else {
+				idx, err := strconv.Atoi(input[0])
+				if err != nil {
+					fmt.Println(err)
+				} else if idx >= len(monitors) {
+					fmt.Println("Error: index out of range")
+				} else {
+					if len(input) == 1 {
+						monitors[idx].SetRegisteredJobId("")
+					} else {
+						monitors[idx].SetRegisteredJobId(input[1])
+					}
+				}
+			}
 		case s := <-interrupt:
 			for _, m := range monitors {
 				m.Stop()
