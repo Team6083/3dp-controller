@@ -383,6 +383,7 @@ type GetJobListResponse struct {
 		Count int   `json:"count"`
 		Jobs  []Job `json:"jobs"`
 	} `json:"result"`
+	Error *APIError `json:"error"`
 }
 
 type GetJobListOrder string

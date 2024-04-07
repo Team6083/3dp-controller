@@ -153,6 +153,19 @@ func (m *Monitor) GetLoadedFile() (*GCodeMetadata, error) {
 	return metaResponse.Result, nil
 }
 
+func (m *Monitor) GetLatestJob() (*Job, error) {
+	resp, err := GetLatestJob(m.ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.Error != nil {
+		return nil, fmt.Errorf("api response %d %s", resp.Error.Code, resp.Error.Message)
+	}
+
+	return &(resp.Result.Jobs[0]), nil
+}
+
 func (m *Monitor) update() {
 	printerObjectsResponse, err := GetPrinterObjects(m.ctx)
 
