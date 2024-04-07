@@ -56,7 +56,9 @@ func main() {
 
 	for _, p := range config.Printers {
 		monConfig := moonraker.MonitorConfig{
-			NoPauseDuration: config.NoPauseDuration,
+			NoPauseDuration:  config.NoPauseDuration,
+			WillPauseMessage: config.DisplayMessages.WillPauseMessage,
+			PauseMessage:     config.DisplayMessages.PauseMessage,
 		}
 
 		m, err := moonraker.NewMonitor(p.Name, p.Url, monConfig, sugar.With("PrinterName", p.Name))

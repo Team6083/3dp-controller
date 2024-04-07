@@ -5,7 +5,7 @@ server:
 no_pause_duration: 5m
 
 display_messages:
-  will_pause_message: Printer will stop in %s since this job is not registered
+  will_pause_message: Printer will stop in {{.RemainDurationStr}} since this job is not registered
   pause_message: Printer stop due to non registered job
 
 

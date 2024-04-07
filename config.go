@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"gopkg.in/yaml.v3"
 	"os"
+	"text/template"
 	"time"
 )
 
@@ -13,15 +14,15 @@ type ConfigServer struct {
 	Port int    `yaml:"port"`
 }
 
-type ConfigDisplayMessages struct {
+type RawConfigDisplayMessages struct {
 	WillPauseMessage string `yaml:"will_pause_message"`
 	PauseMessage     string `yaml:"pause_message"`
 }
 
 type RawConfig struct {
-	Server          ConfigServer          `yaml:"server"`
-	NoPauseDuration string                `yaml:"no_pause_duration"`
-	DisplayMessages ConfigDisplayMessages `yaml:"display_messages"`
+	Server          ConfigServer             `yaml:"server"`
+	NoPauseDuration string                   `yaml:"no_pause_duration"`
+	DisplayMessages RawConfigDisplayMessages `yaml:"display_messages"`
 	Printers        []struct {
 		Name string `yaml:"name"`
 		Url  string `yaml:"url"`
@@ -45,6 +46,11 @@ type ConfigPrinter struct {
 	Name               string
 	Url                string
 	ControllerFailMode ControllerFailMode
+}
+
+type ConfigDisplayMessages struct {
+	WillPauseMessage *template.Template
+	PauseMessage     *template.Template
 }
 
 type Config struct {
@@ -80,7 +86,21 @@ func LoadConfig(fileName string) (*Config, error) {
 func ParseRawConfig(raw RawConfig) (*Config, error) {
 	var cfg Config
 	cfg.Server = raw.Server
-	cfg.DisplayMessages = raw.DisplayMessages
+
+	willPauseMsg, err := template.New("will_pause").Parse(raw.DisplayMessages.WillPauseMessage)
+	if err != nil {
+		return nil, err
+	}
+
+	pauseMsg, err := template.New("pause").Parse(raw.DisplayMessages.PauseMessage)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg.DisplayMessages = ConfigDisplayMessages{
+		WillPauseMessage: willPauseMsg,
+		PauseMessage:     pauseMsg,
+	}
 
 	noPauseDuration, err := time.ParseDuration(raw.NoPauseDuration)
 	if err != nil {

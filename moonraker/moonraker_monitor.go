@@ -1,6 +1,7 @@
 package moonraker
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -8,11 +9,14 @@ import (
 	"net"
 	"net/url"
 	"syscall"
+	"text/template"
 	"time"
 )
 
 type MonitorConfig struct {
-	NoPauseDuration time.Duration
+	NoPauseDuration  time.Duration
+	WillPauseMessage *template.Template
+	PauseMessage     *template.Template
 }
 
 type PrinterState string
@@ -307,10 +311,17 @@ func (m *Monitor) update() {
 						m.logger.Errorf("Error pausing the printer: %s\n", err)
 					}
 
-					// TODO: Use template
-					err = m.updateStatusMessage("No reg, force pause") // 無使用登記，已暫停列印工作
-					if err != nil {
-						m.logger.Errorln(err)
+					data := struct {
+					}{}
+
+					var tpl bytes.Buffer
+					if err := m.config.PauseMessage.Execute(&tpl, data); err != nil {
+						m.logger.Errorf("Error pausing the pause message: %s\n", err)
+					} else {
+						err := m.updateStatusMessage(tpl.String()) // 無使用登記，已暫停列印工作
+						if err != nil {
+							m.logger.Errorln(err)
+						}
 					}
 				}
 
@@ -318,12 +329,18 @@ func (m *Monitor) update() {
 				if m.state == Printing && !m.jobPausedByMonitor && !printerShouldPrint {
 					remDuration := (m.config.NoPauseDuration - printDuration).Round(time.Second)
 
-					// TODO: Use template
-					err := m.updateStatusMessage(
-						fmt.Sprintf("Will pause after %s", remDuration.String()),
-					) // 請進行使用登記，否則將於%s後暫停工作
-					if err != nil {
-						m.logger.Errorln(err)
+					data := struct {
+						RemainDurationStr string
+					}{remDuration.String()}
+
+					var tpl bytes.Buffer
+					if err := m.config.WillPauseMessage.Execute(&tpl, data); err != nil {
+						m.logger.Errorf("Error pausing the will pause message: %s\n", err)
+					} else {
+						err := m.updateStatusMessage(tpl.String()) // 請進行使用登記，否則將於%s後暫停工作
+						if err != nil {
+							m.logger.Errorln(err)
+						}
 					}
 				}
 
