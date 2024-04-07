@@ -8,7 +8,6 @@ import (
 	"go.uber.org/zap"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"v400_monitor/moonraker"
 )
@@ -61,10 +60,6 @@ func main() {
 			panic(err)
 		}
 
-		if p.ControllerFailMode == FailModeNoPrint {
-			m.AllowPrint = false
-		}
-
 		m.Start(ctx)
 
 		monitors = append(monitors, m)
@@ -73,24 +68,7 @@ func main() {
 	for {
 		select {
 		case inputStr := <-termInput:
-			num, err := strconv.ParseInt(inputStr, 10, 32)
-			if err != nil {
-				fmt.Println(err)
-			} else {
-				if int(num) >= len(monitors) {
-					fmt.Printf("Error: Printer no. %d not found!\n", num)
-				} else {
-					m := monitors[int(num)]
-
-					if m.AllowPrint {
-						fmt.Println("Setting AllowPrint to false")
-						m.AllowPrint = false
-					} else {
-						fmt.Println("Setting AllowPrint to true")
-						m.AllowPrint = true
-					}
-				}
-			}
+			fmt.Println(inputStr)
 		case s := <-interrupt:
 			for _, m := range monitors {
 				m.Stop()

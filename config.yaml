@@ -27,7 +27,8 @@ printers:
     controller_fail_mode: "allow_print"
   - name: virtual1
     url: http://10.0.26.2:7125/
-    controller_fail_mode: "no_print"
+    #    controller_fail_mode: "no_print"
+    controller_fail_mode: "allow_print"
   - name: virtual2
     url: http://10.0.26.2:6125/
     controller_fail_mode: "no_print"

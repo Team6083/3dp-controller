@@ -313,7 +313,7 @@ type GCodeMetadata struct {
 	FirstLayerHeight float32 `json:"first_layer_height"`
 	ObjectHeight     float32 `json:"object_height"`
 	FilamentTotal    float32 `json:"filament_total"`
-	EstimatedTime    int     `json:"estimated_time"`
+	EstimatedTime    float32 `json:"estimated_time"`
 	Thumbnails       []struct {
 		Width        int    `json:"width"`
 		Height       int    `json:"height"`

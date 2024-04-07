@@ -11,6 +11,10 @@ import (
 	"time"
 )
 
+type MonitorConfig struct {
+	NoPauseDuration time.Duration
+}
+
 type PrinterState string
 
 const (
@@ -38,23 +42,22 @@ type MonitorPrinterObjects struct {
 	Webhooks      PrinterObjectWebhooks
 }
 
-type MonitorConfig struct {
-	NoPauseDuration time.Duration
-}
-
 type Monitor struct {
 	printerName string
 	printerUrl  *url.URL
 	logger      *zap.SugaredLogger
 	config      MonitorConfig
 
-	AllowPrint         bool
+	registeredJobId    string
+	allowNoRegPrint    bool
 	jobPausedByMonitor bool
 
 	state          PrinterState
 	lastUpdateTime time.Time
 	printerObjects *MonitorPrinterObjects
 	hasLoadedFile  bool
+
+	latestJob *Job
 
 	ctx        context.Context
 	cancelFunc context.CancelFunc
@@ -76,6 +79,10 @@ func (m *Monitor) LastUpdateTime() time.Time {
 	return m.lastUpdateTime
 }
 
+func (m *Monitor) LatestJob() *Job {
+	return m.latestJob
+}
+
 func NewMonitor(name string, printerURL string, config MonitorConfig, logger *zap.SugaredLogger) (*Monitor, error) {
 	m := new(Monitor)
 
@@ -89,7 +96,8 @@ func NewMonitor(name string, printerURL string, config MonitorConfig, logger *za
 	m.logger = logger
 	m.config = config
 
-	m.AllowPrint = true
+	m.registeredJobId = ""
+	m.allowNoRegPrint = true
 	m.jobPausedByMonitor = false
 
 	m.state = Disconnected
@@ -121,6 +129,31 @@ func (m *Monitor) Start(ctx context.Context) {
 				ticker.Stop()
 				return
 			case <-ticker.C:
+				// Update latest job
+				go func() {
+					if m.state == Disconnected || m.state == InternalError {
+						m.latestJob = nil
+						return
+					}
+
+					job, err := m.getLatestJob()
+					if err != nil {
+						m.logger.Errorf("Failed to get latest job: %s\n", err)
+						return
+					}
+					m.latestJob = job
+
+					if m.latestJob == nil {
+						m.logger.Warnln("No latest job found")
+						return
+					}
+
+					// Clear registeredJobId if job is not in_progress, or jobId not match
+					if m.latestJob.Status != "in_progress" || m.latestJob.JobId != m.registeredJobId {
+						m.registeredJobId = ""
+					}
+				}()
+
 				m.update()
 			}
 		}
@@ -153,7 +186,7 @@ func (m *Monitor) GetLoadedFile() (*GCodeMetadata, error) {
 	return metaResponse.Result, nil
 }
 
-func (m *Monitor) GetLatestJob() (*Job, error) {
+func (m *Monitor) getLatestJob() (*Job, error) {
 	resp, err := GetLatestJob(m.ctx)
 	if err != nil {
 		return nil, err
@@ -173,6 +206,7 @@ func (m *Monitor) update() {
 
 	if err != nil {
 		m.printerObjects = nil
+		m.hasLoadedFile = false
 
 		var netErr net.Error
 		if (errors.As(err, &netErr) && netErr.Timeout()) ||
@@ -180,11 +214,13 @@ func (m *Monitor) update() {
 			m.state = Disconnected
 		} else {
 			m.state = InternalError
-			m.logger.Errorf("Error getting orinter objects: %s\n", err)
+			m.logger.Errorf("Error getting printer objects: %s\n", err)
 		}
 	} else {
 		if printerObjectsResponse.Result.Status == nil {
 			m.state = Error
+			m.hasLoadedFile = false
+
 			m.logger.Errorf("MoonrakerError: %d %s\n",
 				printerObjectsResponse.Error.Code, printerObjectsResponse.Error.Message)
 		} else {
@@ -200,6 +236,8 @@ func (m *Monitor) update() {
 			printerObjects.Webhooks = status.Webhooks
 
 			if status.Webhooks.State != "ready" {
+				m.hasLoadedFile = false
+
 				switch status.Webhooks.State {
 				case "startup":
 					m.state = KlippyStartup
@@ -213,7 +251,7 @@ func (m *Monitor) update() {
 					m.state = Unknown
 				}
 			} else {
-				printerShouldPrint := m.AllowPrint
+				printerShouldPrint := m.allowNoRegPrint || m.registeredJobId != ""
 				printDuration := printerObjects.PrintStats.GetPrintDuration()
 
 				switch printerObjects.PrintStats.State {
@@ -232,6 +270,9 @@ func (m *Monitor) update() {
 				default:
 					m.state = Unknown
 				}
+
+				m.hasLoadedFile = printerObjects.PrintStats.State != "standby" &&
+					m.state != Error && m.state != Unknown
 
 				// Check if printer is illegally printing
 				if m.state == Printing && !printerShouldPrint {
@@ -276,7 +317,7 @@ func (m *Monitor) update() {
 				}
 
 				// Resume print if allow print set to true
-				if m.jobPausedByMonitor && m.AllowPrint {
+				if m.jobPausedByMonitor && printerShouldPrint {
 
 					if m.state == Pause {
 						m.logger.Infoln("Resuming")
