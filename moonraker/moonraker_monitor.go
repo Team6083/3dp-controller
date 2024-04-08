@@ -62,7 +62,8 @@ type Monitor struct {
 	printerObjects *MonitorPrinterObjects
 	hasLoadedFile  bool
 
-	latestJob *Job
+	latestJob  *Job
+	loadedFile *GCodeMetadata
 
 	ctx        context.Context
 	cancelFunc context.CancelFunc
@@ -72,8 +73,8 @@ func (m *Monitor) PrinterName() string {
 	return m.printerName
 }
 
-func (m *Monitor) PrinterUrl() url.URL {
-	return *m.printerUrl
+func (m *Monitor) PrinterUrl() string {
+	return m.printerUrl.String()
 }
 
 func (m *Monitor) State() PrinterState {
@@ -84,15 +85,35 @@ func (m *Monitor) LastUpdateTime() time.Time {
 	return m.lastUpdateTime
 }
 
+func (m *Monitor) PrinterObjects() *MonitorPrinterObjects {
+	return m.printerObjects
+}
+
 func (m *Monitor) LatestJob() *Job {
 	return m.latestJob
+}
+
+func (m *Monitor) LoadedFile() *GCodeMetadata {
+	return m.loadedFile
+}
+
+func (m *Monitor) RegisteredJobId() string {
+	return m.registeredJobId
+}
+
+func (m *Monitor) AllowNoRegPrint() bool {
+	return m.allowNoRegPrint
+}
+
+func (m *Monitor) JobPausedByMonitor() bool {
+	return m.jobPausedByMonitor
 }
 
 func (m *Monitor) SetRegisteredJobId(jobId string) {
 	m.registeredJobId = jobId
 
 	if m.ctx != nil && jobId != "" {
-		err := m.clearMessage()
+		err := m.clearMessage(m.ctx)
 
 		if err != nil {
 			m.logger.Errorf("Error clearing message: %s\n", err)
@@ -104,7 +125,7 @@ func (m *Monitor) SetAllowNoRegPrint(allowNoRegPrint bool) {
 	m.allowNoRegPrint = allowNoRegPrint
 
 	if m.ctx != nil && allowNoRegPrint {
-		err := m.clearMessage()
+		err := m.clearMessage(m.ctx)
 		if err != nil {
 			m.logger.Errorf("Error clearing message: %s\n", err)
 		}
@@ -146,7 +167,11 @@ func (m *Monitor) Start(ctx context.Context) {
 	m.ctx = ctx
 	m.cancelFunc = cancel
 
-	ticker := time.NewTicker(2 * time.Second)
+	ticker1Duration := 2 * time.Second
+	ticker1 := time.NewTicker(ticker1Duration)
+
+	ticker2Duration := 5 * time.Second
+	ticker2 := time.NewTicker(ticker2Duration)
 
 	go func() {
 		m.update()
@@ -154,9 +179,21 @@ func (m *Monitor) Start(ctx context.Context) {
 		for {
 			select {
 			case <-ctx.Done():
-				ticker.Stop()
+				ticker1.Stop()
 				return
-			case <-ticker.C:
+			case <-ticker1.C:
+				m.update()
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				ticker2.Stop()
+				return
+			case <-ticker2.C:
 				// Update latest job
 				go func() {
 					if m.state == Disconnected || m.state == InternalError {
@@ -164,7 +201,10 @@ func (m *Monitor) Start(ctx context.Context) {
 						return
 					}
 
-					job, err := m.getLatestJob()
+					ctx2, cancel2 := context.WithTimeout(ctx, ticker2Duration)
+					defer cancel2()
+
+					job, err := m.getLatestJob(ctx2)
 					if err != nil {
 						m.logger.Errorf("Failed to get latest job: %s\n", err)
 						return
@@ -182,7 +222,24 @@ func (m *Monitor) Start(ctx context.Context) {
 					}
 				}()
 
-				m.update()
+				// Update loaded file
+				go func() {
+					if m.state == Disconnected || m.state == InternalError {
+						m.loadedFile = nil
+						return
+					}
+
+					ctx2, cancel2 := context.WithTimeout(ctx, ticker2Duration)
+					defer cancel2()
+
+					metadata, err := m.getLoadedFile(ctx2)
+					if err != nil {
+						m.logger.Errorf("Failed to get loaded file: %s\n", err)
+						return
+					}
+
+					m.loadedFile = metadata
+				}()
 			}
 		}
 	}()
@@ -195,23 +252,6 @@ func (m *Monitor) Stop() {
 		m.ctx = nil
 		m.cancelFunc = nil
 	}
-}
-
-func (m *Monitor) GetLoadedFile() (*GCodeMetadata, error) {
-	if !m.hasLoadedFile {
-		return nil, nil
-	}
-
-	metaResponse, err := GetGcodeMetadata(m.ctx, m.printerObjects.PrintStats.FileName)
-	if err != nil {
-		return nil, err
-	}
-
-	if metaResponse.Error != nil {
-		return nil, fmt.Errorf("api response %d %s", metaResponse.Error.Code, metaResponse.Error.Message)
-	}
-
-	return metaResponse.Result, nil
 }
 
 func (m *Monitor) update() {
@@ -318,7 +358,7 @@ func (m *Monitor) update() {
 					if err := m.config.PauseMessage.Execute(&tpl, data); err != nil {
 						m.logger.Errorf("Error pausing the pause message: %s\n", err)
 					} else {
-						err := m.updateStatusMessage(tpl.String()) // 無使用登記，已暫停列印工作
+						err := m.updateStatusMessage(m.ctx, tpl.String()) // 無使用登記，已暫停列印工作
 						if err != nil {
 							m.logger.Errorln(err)
 						}
@@ -337,7 +377,7 @@ func (m *Monitor) update() {
 					if err := m.config.WillPauseMessage.Execute(&tpl, data); err != nil {
 						m.logger.Errorf("Error pausing the will pause message: %s\n", err)
 					} else {
-						err := m.updateStatusMessage(tpl.String()) // 請進行使用登記，否則將於%s後暫停工作
+						err := m.updateStatusMessage(m.ctx, tpl.String()) // 請進行使用登記，否則將於%s後暫停工作
 						if err != nil {
 							m.logger.Errorln(err)
 						}
@@ -355,7 +395,7 @@ func (m *Monitor) update() {
 							m.logger.Errorf("Error resuming the printer: %s\n", err)
 						}
 
-						err = m.updateStatusMessage("")
+						err = m.clearMessage(m.ctx)
 						if err != nil {
 							m.logger.Errorln(err)
 						}
@@ -366,29 +406,29 @@ func (m *Monitor) update() {
 			}
 		}
 	}
-	m.logger.Debugf("Status: %s\n", m.state)
+	//m.logger.Debugf("Status: %s\n", m.state)
 }
 
-func (m *Monitor) updateStatusMessage(msg string) error {
+func (m *Monitor) updateStatusMessage(ctx context.Context, msg string) error {
 	if m.printerObjects.DisplayStatus.Message == msg {
 		return nil
 	}
 
 	m.lastMessage = msg
 
-	return SetStatusMessage(m.ctx, msg)
+	return SetStatusMessage(ctx, msg)
 }
 
-func (m *Monitor) clearMessage() error {
+func (m *Monitor) clearMessage(ctx context.Context) error {
 	if m.lastMessage == m.printerObjects.DisplayStatus.Message {
-		return m.updateStatusMessage("")
+		return m.updateStatusMessage(ctx, "")
 	}
 
 	return nil
 }
 
-func (m *Monitor) getLatestJob() (*Job, error) {
-	resp, err := GetLatestJob(m.ctx)
+func (m *Monitor) getLatestJob(ctx context.Context) (*Job, error) {
+	resp, err := GetLatestJob(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -398,4 +438,21 @@ func (m *Monitor) getLatestJob() (*Job, error) {
 	}
 
 	return &(resp.Result.Jobs[0]), nil
+}
+
+func (m *Monitor) getLoadedFile(ctx context.Context) (*GCodeMetadata, error) {
+	if !m.hasLoadedFile {
+		return nil, nil
+	}
+
+	metaResponse, err := GetGcodeMetadata(ctx, m.printerObjects.PrintStats.FileName)
+	if err != nil {
+		return nil, err
+	}
+
+	if metaResponse.Error != nil {
+		return nil, fmt.Errorf("api response %d %s", metaResponse.Error.Code, metaResponse.Error.Message)
+	}
+
+	return metaResponse.Result, nil
 }

@@ -10,25 +10,32 @@ display_messages:
 
 
 printers:
-  - name: v400-1
+  - key: v400-1
+    name: V400 \#1
     url: http://10.0.120.12
     controller_fail_mode: "allow_print"
-  - name: v400-2
+  - key: v400-2
+    name: v400 \#2
     url: http://10.0.120.13
     controller_fail_mode: "allow_print"
-  - name: v400-3
+  - key: v400-3
+    name: v400 \#3
     url: http://10.0.120.14
     controller_fail_mode: "allow_print"
-  - name: v400-4
+  - key: v400-4
+    name: v400 \#4
     url: http://10.0.120.15
     controller_fail_mode: "allow_print"
-  - name: v400-5
+  - key: v400-5
+    name: v400 \#5
     url: http://10.0.120.16
     controller_fail_mode: "allow_print"
-  - name: virtual1
+  - key: virtual1
+    name: Virtual Printer \#1
     url: http://10.0.26.2:7125/
     controller_fail_mode: "no_print"
     #controller_fail_mode: "allow_print"
-  - name: virtual2
+  - key: virtual2
+    name: Virtual Printer \#2
     url: http://10.0.26.2:6125/
     controller_fail_mode: "no_print"

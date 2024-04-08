@@ -8,10 +8,10 @@ import (
 	"go.uber.org/zap"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 	"v400_monitor/moonraker"
+	"v400_monitor/web"
 )
 
 func getTerminalInput(input chan string) {
@@ -50,7 +50,7 @@ func main() {
 		panic(err)
 	}
 
-	var monitors []*moonraker.Monitor
+	monitors := make(map[string]*moonraker.Monitor)
 
 	ctx := context.Background()
 
@@ -70,8 +70,11 @@ func main() {
 
 		m.Start(ctx)
 
-		monitors = append(monitors, m)
+		monitors[p.Key] = m
 	}
+
+	server := web.NewServer(ctx, sugar.Named("web"), monitors)
+	go server.Run()
 
 	for {
 		select {
@@ -80,17 +83,16 @@ func main() {
 			if len(input) < 1 {
 				fmt.Println("Usage: <printer_idx> [<job_id>]")
 			} else {
-				idx, err := strconv.Atoi(input[0])
-				if err != nil {
-					fmt.Println(err)
-				} else if idx >= len(monitors) {
-					fmt.Println("Error: index out of range")
-				} else {
+				key := input[0]
+
+				if _, ok := monitors[key]; ok {
 					if len(input) == 1 {
-						monitors[idx].SetRegisteredJobId("")
+						monitors[key].SetRegisteredJobId("")
 					} else {
-						monitors[idx].SetRegisteredJobId(input[1])
+						monitors[key].SetRegisteredJobId(input[1])
 					}
+				} else {
+					fmt.Println("Error: Printer not found!!")
 				}
 			}
 		case s := <-interrupt:

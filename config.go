@@ -24,6 +24,7 @@ type RawConfig struct {
 	NoPauseDuration string                   `yaml:"no_pause_duration"`
 	DisplayMessages RawConfigDisplayMessages `yaml:"display_messages"`
 	Printers        []struct {
+		Key  string `yaml:"key"`
 		Name string `yaml:"name"`
 		Url  string `yaml:"url"`
 		// Should be allow_print or no_print, default allow_print
@@ -43,6 +44,7 @@ const (
 )
 
 type ConfigPrinter struct {
+	Key                string
 	Name               string
 	Url                string
 	ControllerFailMode ControllerFailMode
@@ -57,7 +59,7 @@ type Config struct {
 	Server          ConfigServer
 	NoPauseDuration time.Duration
 	DisplayMessages ConfigDisplayMessages
-	Printers        []ConfigPrinter
+	Printers        map[string]ConfigPrinter
 }
 
 func LoadConfig(fileName string) (*Config, error) {
@@ -77,14 +79,16 @@ func LoadConfig(fileName string) (*Config, error) {
 	decoder := yaml.NewDecoder(f)
 	err = decoder.Decode(&rawCfg)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	return ParseRawConfig(rawCfg)
 }
 
 func ParseRawConfig(raw RawConfig) (*Config, error) {
-	var cfg Config
+	cfg := Config{
+		Printers: make(map[string]ConfigPrinter),
+	}
 	cfg.Server = raw.Server
 
 	willPauseMsg, err := template.New("will_pause").Parse(raw.DisplayMessages.WillPauseMessage)
@@ -110,6 +114,7 @@ func ParseRawConfig(raw RawConfig) (*Config, error) {
 
 	for _, rp := range raw.Printers {
 		p := ConfigPrinter{
+			Key:  rp.Key,
 			Name: rp.Name,
 			Url:  rp.Url,
 		}
@@ -123,7 +128,10 @@ func ParseRawConfig(raw RawConfig) (*Config, error) {
 			return nil, errors.New(fmt.Sprintf("Unknown ControllerFailMode %s", rp.ControllerFailMode))
 		}
 
-		cfg.Printers = append(cfg.Printers, p)
+		if _, ok := cfg.Printers[p.Key]; ok {
+			return nil, fmt.Errorf("duplicated printer '%s'", p.Key)
+		}
+		cfg.Printers[rp.Key] = p
 	}
 
 	return &cfg, nil
