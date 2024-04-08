@@ -2,6 +2,10 @@ package web
 
 import "v400_monitor/moonraker"
 
+type APIErrorResp struct {
+	Error string `json:"error"`
+}
+
 type Printer struct {
 	Key  string `json:"key"`
 	Name string `json:"name"`

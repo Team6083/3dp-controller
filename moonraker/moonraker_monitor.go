@@ -382,6 +382,8 @@ func (m *Monitor) update() {
 							m.logger.Errorln(err)
 						}
 					}
+				} else {
+					// TODO: clear will pause message
 				}
 
 				// Resume print if allow print set to true
