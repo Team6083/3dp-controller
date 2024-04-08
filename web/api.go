@@ -72,6 +72,25 @@ type UpdatePrinterResponse struct {
 }
 
 func makePrinter(key string, m *moonraker.Monitor) Printer {
+	printerObjs := m.PrinterObjects()
+
+	var message string
+	var printerStats *moonraker.PrinterObjectPrintStats
+	var displayStatus *moonraker.PrinterObjectDisplayStatus
+	var virtualSDCard *moonraker.PrinterObjectVirtualSDCard
+
+	if printerObjs != nil {
+		if printerObjs.Webhooks.State != "ready" {
+			message = printerObjs.Webhooks.StateMessage
+		} else {
+			message = printerObjs.PrintStats.Message
+		}
+
+		printerStats = &printerObjs.PrintStats
+		displayStatus = &printerObjs.DisplayStatus
+		virtualSDCard = &printerObjs.VirtualSDCard
+	}
+
 	return Printer{
 		Key:  key,
 		Name: m.PrinterName(),
@@ -80,10 +99,15 @@ func makePrinter(key string, m *moonraker.Monitor) Printer {
 		RegJobId:        m.RegisteredJobId(),
 		AllowNoRegPrint: m.AllowNoRegPrint(),
 
-		State:          m.State(),
-		PrinterObjects: m.PrinterObjects(),
-		LoadedFile:     m.LoadedFile(),
-		LatestJob:      m.LatestJob(),
+		State:   m.State(),
+		Message: message,
+
+		PrinterStats:  printerStats,
+		DisplayStatus: displayStatus,
+		VirtualSDCard: virtualSDCard,
+
+		LoadedFile: m.LoadedFile(),
+		LatestJob:  m.LatestJob(),
 	}
 }
 

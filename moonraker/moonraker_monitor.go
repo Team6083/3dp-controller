@@ -265,7 +265,8 @@ func (m *Monitor) update() {
 
 		var netErr net.Error
 		if (errors.As(err, &netErr) && netErr.Timeout()) ||
-			errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNRESET) {
+			errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNRESET) ||
+			errors.Is(err, syscall.EHOSTDOWN) || errors.Is(err, syscall.EHOSTUNREACH) {
 			m.state = Disconnected
 		} else {
 			m.state = InternalError

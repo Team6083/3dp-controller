@@ -303,18 +303,18 @@ func SetStatusMessage(ctx context.Context, msg string) error {
 // Get Gcode Metadata
 
 type GCodeMetadata struct {
-	PrintStartTime   float32 `json:"print_start_time"`
-	JobId            string  `json:"job_id"`
-	Size             int     `json:"size"`
-	Modified         float32 `json:"modified"`
-	UUID             string  `json:"uuid"`
-	Slicer           string  `json:"slicer"`
-	SlicerVersion    string  `json:"slicer_version"`
-	LayerHeight      float32 `json:"layer_height"`
-	FirstLayerHeight float32 `json:"first_layer_height"`
-	ObjectHeight     float32 `json:"object_height"`
-	FilamentTotal    float32 `json:"filament_total"`
-	EstimatedTime    float32 `json:"estimated_time"`
+	PrintStartTime   float32  `json:"print_start_time"`
+	JobId            string   `json:"job_id"`
+	Size             int      `json:"size"`
+	Modified         float32  `json:"modified"`
+	UUID             string   `json:"uuid"`
+	Slicer           string   `json:"slicer"`
+	SlicerVersion    string   `json:"slicer_version"`
+	LayerHeight      float32  `json:"layer_height"`
+	FirstLayerHeight float32  `json:"first_layer_height"`
+	ObjectHeight     float32  `json:"object_height"`
+	FilamentTotal    float32  `json:"filament_total"`
+	EstimatedTime    *float32 `json:"estimated_time"`
 	Thumbnails       []struct {
 		Width        int    `json:"width"`
 		Height       int    `json:"height"`

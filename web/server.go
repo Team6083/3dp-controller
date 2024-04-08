@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"github.com/gin-contrib/cors"
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -28,6 +29,7 @@ func NewServer(ctx context.Context, logger *zap.SugaredLogger, monitors map[stri
 	desugar := logger.Desugar()
 	engine.Use(ginzap.Ginzap(desugar, time.RFC3339, true))
 	engine.Use(ginzap.RecoveryWithZap(desugar, true))
+	engine.Use(cors.Default())
 
 	docs.SwaggerInfo.BasePath = "/api/v1"
 	engine.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
