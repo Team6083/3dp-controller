@@ -98,6 +98,7 @@ func makePrinter(key string, m *moonraker.Monitor) Printer {
 
 		RegJobId:        m.RegisteredJobId(),
 		AllowNoRegPrint: m.AllowNoRegPrint(),
+		NoPauseDuration: m.Config().NoPauseDuration.Seconds(),
 
 		State:   m.State(),
 		Message: message,

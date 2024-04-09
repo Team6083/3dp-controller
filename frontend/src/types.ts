@@ -1,21 +1,24 @@
 import {
-    moonraker_GCodeMetadata,
-    moonraker_Job,
-    moonraker_PrinterObjectPrintStats,
-    moonraker_PrinterObjectVirtualSDCard,
-    moonraker_PrinterState,
-    web_Printer
+    MoonrakerGCodeMetadata,
+    MoonrakerJob,
+    MoonrakerPrinterObjectPrintStats,
+    MoonrakerPrinterObjectVirtualSDCard,
+    MoonrakerPrinterState,
+    WebPrinter
 } from "@/api";
+
 
 export interface GCodeMetadata {
     fileName: string;
     estimatedTime?: number;
+    uuid: string;
 }
 
-export function convertGCodeMetadata(gcodeMeta: moonraker_GCodeMetadata): GCodeMetadata {
+export function convertGCodeMetadata(gcodeMeta: MoonrakerGCodeMetadata): GCodeMetadata {
     return {
         fileName: gcodeMeta.filename!,
         estimatedTime: gcodeMeta.estimated_time,
+        uuid: gcodeMeta.uuid!,
     }
 }
 
@@ -26,7 +29,7 @@ export interface Job {
     metadata?: GCodeMetadata;
 }
 
-export function convertJob(job: moonraker_Job): Job {
+export function convertJob(job: MoonrakerJob): Job {
     return {
         jobId: job.job_id!,
         status: job.status!,
@@ -38,13 +41,15 @@ export function convertJob(job: moonraker_Job): Job {
 export interface PrinterStats {
     printDuration: number;
     totalDuration: number;
+    filamentUsed: number;
     state: string;
 }
 
-export function convertPrinterStats(printerStats: moonraker_PrinterObjectPrintStats): PrinterStats {
+export function convertPrinterStats(printerStats: MoonrakerPrinterObjectPrintStats): PrinterStats {
     return {
         printDuration: printerStats.print_duration!,
         totalDuration: printerStats.total_duration!,
+        filamentUsed: printerStats.filament_used!,
         state: printerStats.state!,
     }
 }
@@ -54,7 +59,7 @@ export interface VirtualSD {
     isActive: boolean;
 }
 
-export function convertVirtualSD(virtualSD: moonraker_PrinterObjectVirtualSDCard): VirtualSD {
+export function convertVirtualSD(virtualSD: MoonrakerPrinterObjectVirtualSDCard): VirtualSD {
     return {
         progress: virtualSD.progress!,
         isActive: virtualSD.is_active!,
@@ -68,8 +73,11 @@ export interface Printer {
 
     registeredJobId: string;
     allowNoRegisteredPrint: boolean;
+    noPauseDuration: number;
 
-    state: moonraker_PrinterState;
+    state: MoonrakerPrinterState;
+    printerNotOpen: boolean;
+    displayMessage?: string;
     errorMessage?: string;
 
     printerStats?: PrinterStats;
@@ -79,7 +87,10 @@ export interface Printer {
     latestJob?: Job;
 }
 
-export function convertPrinter(printer: web_Printer): Printer {
+export function convertPrinter(printer: WebPrinter): Printer {
+    let displayMessage = printer.display_status?.message;
+    if (displayMessage?.trim() === "") displayMessage = undefined;
+
     return {
         key: printer.key!,
         name: printer.name!,
@@ -87,8 +98,11 @@ export function convertPrinter(printer: web_Printer): Printer {
 
         registeredJobId: printer.registered_job_id ?? "",
         allowNoRegisteredPrint: printer.allow_no_register_print!,
+        noPauseDuration: printer.no_pause_duration!,
 
         state: printer.state!,
+        printerNotOpen: false,
+        displayMessage,
         errorMessage: printer.message,
 
         printerStats: printer.printer_stats ? convertPrinterStats(printer.printer_stats) : undefined,

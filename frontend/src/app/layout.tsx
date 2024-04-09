@@ -4,19 +4,25 @@ import {Inter} from "next/font/google";
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './global.css'
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
-import {OpenAPI} from "@/api";
+import {Configuration, PrintersApi} from "@/api";
+import {PrintersAPIContext} from "@/app/printersAPIContext";
 
 const inter = Inter({subsets: ["latin"]});
 
 const queryClient = new QueryClient();
-OpenAPI.BASE = 'http://localhost:8080/api/v1';
+
+const basePath: string = process.env.NODE_ENV == "development" ?
+    'http://localhost:8080/api/v1' : '/api/v1';
+const printersAPI = new PrintersApi(new Configuration({basePath}), basePath);
 
 export default function RootLayout({children}: Readonly<{ children: React.ReactNode }>) {
     return (
         <QueryClientProvider client={queryClient}>
-            <html lang="en">
-            <body className={inter.className}>{children}</body>
-            </html>
+            <PrintersAPIContext.Provider value={printersAPI}>
+                <html lang="en">
+                <body className={inter.className}>{children}</body>
+                </html>
+            </PrintersAPIContext.Provider>
         </QueryClientProvider>
     );
 }

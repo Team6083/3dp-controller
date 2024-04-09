@@ -11,8 +11,9 @@ type Printer struct {
 	Name string `json:"name"`
 	Url  string `json:"url"`
 
-	RegJobId        string `json:"registered_job_id"`
-	AllowNoRegPrint bool   `json:"allow_no_register_print"`
+	RegJobId        string  `json:"registered_job_id"`
+	AllowNoRegPrint bool    `json:"allow_no_register_print"`
+	NoPauseDuration float64 `json:"no_pause_duration"`
 
 	State   moonraker.PrinterState `json:"state"`
 	Message string                 `json:"message"`

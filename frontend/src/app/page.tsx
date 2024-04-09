@@ -1,53 +1,51 @@
 'use client'
 
-import Badge from "react-bootstrap/Badge"
-import Button from "react-bootstrap/button"
-import Card from "react-bootstrap/Card";
 import Container from "react-bootstrap/Container";
 import Col from "react-bootstrap/Col"
 import Row from "react-bootstrap/Row"
-import {useQuery, useQueryClient} from "@tanstack/react-query";
-import {moonraker_PrinterState, PrintersService} from "@/api";
 import PrinterCard from "@/app/components/PrinterCard";
 import {useMemo} from "react";
 import {convertPrinter} from "@/types";
+import {MoonrakerPrinterState} from "@/api";
+import {usePrintersQuery} from "@/app/hooks/usePrintersQuery";
 
 function Home() {
-
-    const queryClient = useQueryClient();
-
     // Queries
-    const query = useQuery({
-        queryKey: ['printers'],
-        queryFn: PrintersService.getPrinters,
-        refetchInterval: 5000,
-    });
+    const {data: queryData} = usePrintersQuery();
 
     const printers = useMemo(() => {
-        if (!query.data) return [];
+        if (!queryData?.data) return [];
 
-        const data = [...query.data]
-            .filter((v) => v.state !== moonraker_PrinterState.Disconnected);
+        const data = [...queryData.data]
 
-        data.sort((a, b) => a.key!.localeCompare(b.key!))
+        data.sort((a, b) => {
+            const aDisconnected = a.state === MoonrakerPrinterState.Disconnected;
+            const bDisconnected = b.state === MoonrakerPrinterState.Disconnected;
+
+            if (aDisconnected && !bDisconnected) return 1;
+            else if (!aDisconnected && bDisconnected) return -1;
+            return a.key!.localeCompare(b.key!);
+        })
 
         return data;
-    }, [query.data]);
+    }, [queryData?.data]);
 
     return (
         <Container className="py-3" fluid="md">
             <h1 className="mb-4">3D Printer Controller</h1>
 
             <Row xs={1} md={2} lg={3} className="g-4">
-                {printers.map((v) => {
-                    console.log(v);
+                {printers
+                    .map((v) => {
+                        console.log(v);
 
-                    const printer = convertPrinter(v);
+                        const printer = convertPrinter(v);
 
-                    return <Col key={v.key}>
-                        <PrinterCard printer={printer}/>
-                    </Col>
-                })}
+                        return <Col key={v.key}>
+                            <PrinterCard printer={printer}/>
+                        </Col>
+                    })
+                }
 
                 {/*<Col>*/}
                 {/*    <Card border="danger">*/}
