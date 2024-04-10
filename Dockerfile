@@ -22,6 +22,17 @@ RUN swag init
 # Build the application
 RUN go build -o main .
 
+FROM openapitools/openapi-generator-cli as openapi_gen
+
+# Move to working directory /build
+WORKDIR /build
+
+# Copy docs from builder
+COPY --from=builder /build/docs/swagger.yaml .
+
+# Generate api
+RUN generate -i swagger.yaml -o ./api -g typescript-axios --skip-validate-spec
+
 FROM node:latest as app_builder
 
 # Move to working directory /build
@@ -35,11 +46,8 @@ RUN npm install
 # Copy the code into the container
 COPY frontend .
 
-# Copy openapi docs
-COPY --from=builder /build/docs ../docs
-
-# Generate API files
-RUN npm run api-gen
+# Copy api files
+COPY --from=openapi_gen /build/api ./api
 
 # Build frontend
 RUN npm run build
