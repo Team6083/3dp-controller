@@ -32,7 +32,9 @@ func getTerminalInput(input chan string) {
 func main() {
 	var logger *zap.Logger
 
-	if len(os.Getenv("dev")) != 0 {
+	isDevMode := len(os.Getenv("dev")) != 0
+
+	if isDevMode {
 		var err error
 		logger, err = zap.NewDevelopment()
 		if err != nil {
@@ -89,7 +91,7 @@ func main() {
 		monitors[p.Key] = m
 	}
 
-	server := web.NewServer(ctx, sugar.Named("web"), monitors)
+	server := web.NewServer(ctx, isDevMode, sugar.Named("web"), monitors)
 	go server.Run()
 
 	for {

@@ -364,7 +364,7 @@ func (m *Monitor) update() {
 					if err := m.config.PauseMessage.Execute(&tpl, data); err != nil {
 						m.logger.Errorf("Error pausing the pause message: %s\n", err)
 					} else {
-						err := m.updateStatusMessage(m.ctx, tpl.String()) // 無使用登記，已暫停列印工作
+						err := m.updateStatusMessage(m.ctx, tpl.String())
 						if err != nil {
 							m.logger.Errorln(err)
 						}
@@ -383,7 +383,7 @@ func (m *Monitor) update() {
 					if err := m.config.WillPauseMessage.Execute(&tpl, data); err != nil {
 						m.logger.Errorf("Error pausing the will pause message: %s\n", err)
 					} else {
-						err := m.updateStatusMessage(m.ctx, tpl.String()) // 請進行使用登記，否則將於%s後暫停工作
+						err := m.updateStatusMessage(m.ctx, tpl.String())
 						if err != nil {
 							m.logger.Errorln(err)
 						}

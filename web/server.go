@@ -6,14 +6,13 @@ import (
 	"github.com/gin-contrib/cors"
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
 	"net/http"
 	"time"
 	"v400_monitor/docs"
 	"v400_monitor/moonraker"
-
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 type Server struct {
@@ -26,16 +25,27 @@ type Server struct {
 	ctx context.Context
 }
 
-func NewServer(ctx context.Context, logger *zap.SugaredLogger, monitors map[string]*moonraker.Monitor) *Server {
-	engine := gin.New()
+func NewServer(ctx context.Context, isDevMode bool, logger *zap.SugaredLogger, monitors map[string]*moonraker.Monitor) *Server {
+	var engine *gin.Engine
 
-	desugar := logger.Desugar()
-	engine.Use(ginzap.Ginzap(desugar, time.RFC3339, true))
-	engine.Use(ginzap.RecoveryWithZap(desugar, true))
+	if !isDevMode {
+		gin.SetMode(gin.ReleaseMode)
+
+		engine = gin.New()
+
+		desugar := logger.Desugar()
+		engine.Use(ginzap.Ginzap(desugar, time.RFC3339, true))
+		engine.Use(ginzap.RecoveryWithZap(desugar, true))
+	} else {
+		engine = gin.Default()
+	}
+
 	engine.Use(cors.Default())
 
 	docs.SwaggerInfo.BasePath = "/api/v1"
-	engine.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	if isDevMode {
+		engine.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	}
 
 	server := Server{
 		r:        engine,
@@ -46,9 +56,9 @@ func NewServer(ctx context.Context, logger *zap.SugaredLogger, monitors map[stri
 
 	server.registerAPIRoutes(engine.Group(docs.SwaggerInfo.BasePath))
 
-	engine.Static("/ui", "./frontend/out")
-	engine.GET("/", func(c *gin.Context) {
-		c.Redirect(http.StatusFound, "./ui")
+	feFS := http.FileServer(noListFileSystem{http.Dir("./frontend/out")})
+	engine.NoRoute(func(c *gin.Context) {
+		feFS.ServeHTTP(c.Writer, c.Request)
 	})
 
 	return &server
