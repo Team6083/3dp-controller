@@ -69,8 +69,6 @@ function Home() {
             <Row xs={1} md={2} lg={3} className="g-4">
                 {printers
                     .map((printer) => {
-                        console.log(printer);
-
                         return <Col key={printer.key}>
                             <PrinterCard printer={printer} apiURLBase={apiUrlBase!}/>
                         </Col>

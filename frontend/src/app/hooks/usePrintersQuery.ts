@@ -1,7 +1,7 @@
 import {useContext} from 'react';
+import {useQuery} from "@tanstack/react-query";
 
 import {PrintersAPIContext} from "../printersAPIContext";
-import {useQuery} from "@tanstack/react-query";
 
 
 export function usePrintersQuery(refetchInterval: number = 2500) {
