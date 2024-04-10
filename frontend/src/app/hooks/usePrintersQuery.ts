@@ -1,6 +1,6 @@
 import {useContext} from 'react';
 
-import {PrintersAPIContext} from "@/app/printersAPIContext";
+import {PrintersAPIContext} from "../printersAPIContext";
 import {useQuery} from "@tanstack/react-query";
 
 

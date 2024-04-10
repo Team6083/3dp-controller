@@ -1,13 +1,12 @@
-'use client'
+import {useMemo} from "react";
 
 import Badge from "react-bootstrap/Badge";
 import Button from "react-bootstrap/Button"
 import Card from "react-bootstrap/Card";
 
-import {getLatestJobInfo, Printer} from "@/types";
-import {MoonrakerPrinterState} from "@/api";
-import {getPrinterStateInfo, secondsToDurationString} from "@/utils";
-import {useMemo} from "react";
+import {getLatestJobInfo, Printer} from "../../types";
+import {MoonrakerPrinterState} from "../../api";
+import {getPrinterStateInfo, secondsToDurationString} from "../../utils";
 
 type PrinterCardProps = {
     printer: Printer

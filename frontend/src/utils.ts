@@ -1,4 +1,4 @@
-import {MoonrakerPrinterState} from "@/api";
+import {MoonrakerPrinterState} from "./api";
 
 export function getPrinterStateKeyByValue(value: MoonrakerPrinterState): string | undefined {
     for (const key in MoonrakerPrinterState) {

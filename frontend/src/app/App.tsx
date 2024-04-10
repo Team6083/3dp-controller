@@ -1,5 +1,3 @@
-'use client'
-
 import {Fragment, useContext, useMemo} from "react";
 
 import Badge from "react-bootstrap/Badge"
@@ -7,12 +5,12 @@ import Container from "react-bootstrap/Container";
 import Col from "react-bootstrap/Col"
 import Row from "react-bootstrap/Row"
 
-import PrinterCard from "@/app/components/PrinterCard";
-import {convertPrinter} from "@/types";
-import {MoonrakerPrinterState} from "@/api";
-import {usePrintersQuery} from "@/app/hooks/usePrintersQuery";
-import {PrintersAPIUrlBase} from "@/app/printersAPIContext";
-import {getPrinterStateInfo, getPrinterStateKeyByValue} from "@/utils";
+import PrinterCard from "./components/PrinterCard";
+import {convertPrinter} from "../types";
+import {MoonrakerPrinterState} from "../api";
+import {usePrintersQuery} from "./hooks/usePrintersQuery";
+import {PrintersAPIUrlBase} from "./printersAPIContext";
+import {getPrinterStateInfo, getPrinterStateKeyByValue} from "../utils";
 
 function Home() {
     const apiUrlBase = useContext(PrintersAPIUrlBase);

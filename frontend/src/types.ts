@@ -1,3 +1,5 @@
+import {max} from "@popperjs/core/lib/utils/math";
+
 import {
     MoonrakerGCodeMetadata,
     MoonrakerJob,
@@ -5,9 +7,8 @@ import {
     MoonrakerPrinterObjectVirtualSDCard,
     MoonrakerPrinterState,
     WebPrinter
-} from "@/api";
-import {getJobStatsColor, secondsToDurationString} from "@/utils";
-import {max} from "@popperjs/core/lib/utils/math";
+} from "./api";
+import {getJobStatsColor, secondsToDurationString} from "./utils";
 
 
 export interface GCodeMetadata {
