@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"go.uber.org/zap"
+	"io"
 	"os"
 	"os/signal"
 	"strings"
@@ -16,9 +17,15 @@ import (
 
 func getTerminalInput(input chan string) {
 	scanner := bufio.NewScanner(os.Stdin)
-	for {
-		scanner.Scan()
-		input <- scanner.Text()
+
+	_, err := os.Stdin.Stat()
+	if err != nil && !errors.Is(err, io.EOF) {
+		panic(err)
+	} else {
+		for {
+			scanner.Scan()
+			input <- scanner.Text()
+		}
 	}
 }
 
