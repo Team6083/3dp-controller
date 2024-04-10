@@ -2,6 +2,8 @@
 
 FROM golang:latest as builder
 
+ENV CGO_ENABLED=0
+
 # Move to working directory /build
 WORKDIR /build
 
@@ -31,7 +33,7 @@ WORKDIR /build
 COPY --from=builder /build/docs/swagger.yaml .
 
 # Generate api
-RUN generate -i swagger.yaml -o ./api -g typescript-axios --skip-validate-spec
+RUN docker-entrypoint.sh generate -i swagger.yaml -o ./api -g typescript-axios --skip-validate-spec
 
 FROM node:latest as app_builder
 
@@ -47,7 +49,7 @@ RUN npm install
 COPY frontend .
 
 # Copy api files
-COPY --from=openapi_gen /build/api ./api
+COPY --from=openapi_gen /build/api ./src/api
 
 # Build frontend
 RUN npm run build
