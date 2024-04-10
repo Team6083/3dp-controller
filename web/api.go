@@ -1,12 +1,14 @@
 package web
 
 import (
+	"context"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 	"v400_monitor/moonraker"
 )
 
@@ -207,7 +209,9 @@ func (s *Server) GetLatestThumbnail(g *gin.Context) {
 
 		u = u.JoinPath("/server/files/gcodes").JoinPath(thumb.RelativePath)
 
-		req, err := http.NewRequestWithContext(s.ctx, "GET", u.String(), nil)
+		ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
+		defer cancel()
+		req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
 		if err != nil {
 			s.logger.Errorf("create request error: %s", err.Error())
 			g.Status(http.StatusInternalServerError)
@@ -228,7 +232,7 @@ func (s *Server) GetLatestThumbnail(g *gin.Context) {
 		g.Header("Content-Type", resp.Header.Get("Content-Type"))
 
 		if _, err = io.Copy(g.Writer, resp.Body); err != nil {
-			// handle error
+			s.logger.Errorf("copy error: %s", err.Error())
 		}
 	} else {
 		resp := APIErrorResp{

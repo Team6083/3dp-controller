@@ -2,10 +2,12 @@ package web
 
 import (
 	"context"
+	"errors"
 	"github.com/gin-contrib/cors"
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	"net/http"
 	"time"
 	"v400_monitor/docs"
 	"v400_monitor/moonraker"
@@ -17,6 +19,7 @@ import (
 type Server struct {
 	r      *gin.Engine
 	logger *zap.SugaredLogger
+	srv    *http.Server
 
 	monitors map[string]*moonraker.Monitor
 
@@ -50,8 +53,23 @@ func NewServer(ctx context.Context, logger *zap.SugaredLogger, monitors map[stri
 
 func (s *Server) Run() {
 	// TODO: addr
-	err := s.r.Run(":8080")
-	if err != nil {
-		panic(err)
+	s.srv = &http.Server{
+		Addr:    ":8080",
+		Handler: s.r,
 	}
+
+	if err := s.srv.ListenAndServe(); err != nil &&
+		!errors.Is(err, http.ErrServerClosed) {
+		s.logger.Fatalf("listen: %s\n", err)
+	}
+}
+
+func (s *Server) Shutdown() {
+	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
+	defer cancel()
+
+	if err := s.srv.Shutdown(ctx); err != nil {
+		s.logger.Fatalf("Server Shutdown: %s\n", err)
+	}
+	s.logger.Infoln("Server exiting")
 }

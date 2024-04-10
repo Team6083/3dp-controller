@@ -25,9 +25,18 @@ func getTerminalInput(input chan string) {
 func main() {
 	var logger *zap.Logger
 
-	logger, err := zap.NewDevelopment()
-	if err != nil {
-		panic(err)
+	if len(os.Getenv("dev")) != 0 {
+		var err error
+		logger, err = zap.NewDevelopment()
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		var err error
+		logger, err = zap.NewProduction()
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	defer func(logger *zap.Logger) {
@@ -96,6 +105,8 @@ func main() {
 				}
 			}
 		case s := <-interrupt:
+			go server.Shutdown()
+
 			for _, m := range monitors {
 				m.Stop()
 			}
