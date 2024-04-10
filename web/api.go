@@ -3,7 +3,9 @@ package web
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"v400_monitor/moonraker"
 )
@@ -14,6 +16,7 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.GET("/printers", s.PrintersHandler)
 	r.GET("/printers/:key", s.PrinterHandler)
 	r.PUT("/printers/:key", s.UpdatePrinter)
+	r.GET("/printers/:key/latest_thumb", s.GetLatestThumbnail)
 }
 
 // @BasePath /api/v1
@@ -100,8 +103,9 @@ func makePrinter(key string, m *moonraker.Monitor) Printer {
 		AllowNoRegPrint: m.AllowNoRegPrint(),
 		NoPauseDuration: m.Config().NoPauseDuration.Seconds(),
 
-		State:   m.State(),
-		Message: message,
+		State:          m.State(),
+		Message:        message,
+		LastUpdateTime: m.LastUpdateTime().UnixMilli(),
 
 		PrinterStats:  printerStats,
 		DisplayStatus: displayStatus,
@@ -160,6 +164,76 @@ func (s *Server) UpdatePrinter(g *gin.Context) {
 			Error: "printer not found",
 		}
 
+		g.JSON(http.StatusNotFound, resp)
+	}
+}
+
+// GetLatestThumbnail godoc
+// @Summary Get thumbnail for a file
+// @Tags Printers
+// @Param key				path	string	true	"key of printer"
+// @Produce image/png
+// @Success 200
+// @Router /printers/{key}/latest_thumb [get]
+func (s *Server) GetLatestThumbnail(g *gin.Context) {
+	printerKey := g.Param("key")
+
+	if m, ok := s.monitors[printerKey]; ok {
+		latestJob := m.LatestJob()
+		if latestJob == nil {
+			resp := APIErrorResp{
+				Error: "no latest job",
+			}
+			g.JSON(http.StatusNotFound, resp)
+			return
+		}
+
+		if len(latestJob.Metadata.Thumbnails) == 0 {
+			resp := APIErrorResp{
+				Error: "no thumbnails",
+			}
+			g.JSON(http.StatusNotFound, resp)
+			return
+		}
+
+		thumb := latestJob.Metadata.Thumbnails[len(latestJob.Metadata.Thumbnails)-1]
+
+		u, err := url.Parse(m.PrinterUrl())
+		if err != nil {
+			s.logger.Errorf("url parse error: %s", err.Error())
+			g.Status(http.StatusInternalServerError)
+			return
+		}
+
+		u = u.JoinPath("/server/files/gcodes").JoinPath(thumb.RelativePath)
+
+		req, err := http.NewRequestWithContext(s.ctx, "GET", u.String(), nil)
+		if err != nil {
+			s.logger.Errorf("create request error: %s", err.Error())
+			g.Status(http.StatusInternalServerError)
+			return
+		}
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			s.logger.Errorf("request error: %s", err.Error())
+			g.Status(http.StatusInternalServerError)
+			return
+		}
+
+		defer resp.Body.Close()
+
+		g.Status(http.StatusOK)
+		g.Header("Context-Length", fmt.Sprintf("%d", resp.ContentLength))
+		g.Header("Content-Type", resp.Header.Get("Content-Type"))
+
+		if _, err = io.Copy(g.Writer, resp.Body); err != nil {
+			// handle error
+		}
+	} else {
+		resp := APIErrorResp{
+			Error: "printer not found",
+		}
 		g.JSON(http.StatusNotFound, resp)
 	}
 }

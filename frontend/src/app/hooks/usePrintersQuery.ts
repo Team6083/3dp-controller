@@ -4,7 +4,7 @@ import {PrintersAPIContext} from "@/app/printersAPIContext";
 import {useQuery} from "@tanstack/react-query";
 
 
-export function usePrintersQuery() {
+export function usePrintersQuery(refetchInterval: number = 2500) {
     const api = useContext(PrintersAPIContext);
 
     return useQuery({
@@ -12,7 +12,7 @@ export function usePrintersQuery() {
         queryFn: async () => {
             return api?.printersGet();
         },
-        refetchInterval: 5000,
+        refetchInterval: refetchInterval,
         enabled: !!api,
     });
 }

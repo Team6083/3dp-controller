@@ -1,22 +1,29 @@
 'use client'
 
+import {Fragment, useContext, useMemo} from "react";
+
+import Badge from "react-bootstrap/Badge"
 import Container from "react-bootstrap/Container";
 import Col from "react-bootstrap/Col"
 import Row from "react-bootstrap/Row"
+
 import PrinterCard from "@/app/components/PrinterCard";
-import {useMemo} from "react";
 import {convertPrinter} from "@/types";
 import {MoonrakerPrinterState} from "@/api";
 import {usePrintersQuery} from "@/app/hooks/usePrintersQuery";
+import {PrintersAPIUrlBase} from "@/app/printersAPIContext";
+import {getPrinterStateInfo, getPrinterStateKeyByValue} from "@/utils";
 
 function Home() {
+    const apiUrlBase = useContext(PrintersAPIUrlBase);
+
     // Queries
-    const {data: queryData} = usePrintersQuery();
+    const {data: queryData, dataUpdatedAt} = usePrintersQuery();
 
     const printers = useMemo(() => {
         if (!queryData?.data) return [];
 
-        const data = [...queryData.data]
+        const data = queryData.data.map(convertPrinter);
 
         data.sort((a, b) => {
             const aDisconnected = a.state === MoonrakerPrinterState.Disconnected;
@@ -30,19 +37,44 @@ function Home() {
         return data;
     }, [queryData?.data]);
 
+    const printerStat = useMemo(() => {
+        return printers.reduce<Map<MoonrakerPrinterState, number>>((prev, curr) => {
+            const {state} = curr;
+            const count = (prev.get(state) ?? 0) + 1;
+            prev.set(state, count);
+
+            return prev;
+        }, new Map<MoonrakerPrinterState, number>());
+    }, [printers]);
+
     return (
         <Container className="py-3" fluid="md">
-            <h1 className="mb-4">3D Printer Controller</h1>
+            <Row xs={1} md={2} className="mb-4">
+                <Col className="align-content-center"><h1 className="mb-0">3D Printer Controller</h1></Col>
+                <Col className="align-content-center text-end">
+                    <p className="fs-6 mb-0">{Array.from(printerStat.entries())
+                        .map(([state, count], idx) => {
+                            const {stateColor} = getPrinterStateInfo(state);
+
+                            return <Fragment key={state}>
+                                {idx !== 0 ? " " : null}
+                                <Badge bg={stateColor}>{count}{" "}{getPrinterStateKeyByValue(state)}</Badge>
+                            </Fragment>
+                        })}
+                    </p>
+                    <p className="text-muted fw-medium">
+                        Last updated at {new Date(dataUpdatedAt).toLocaleTimeString()}
+                    </p>
+                </Col>
+            </Row>
 
             <Row xs={1} md={2} lg={3} className="g-4">
                 {printers
-                    .map((v) => {
-                        console.log(v);
+                    .map((printer) => {
+                        console.log(printer);
 
-                        const printer = convertPrinter(v);
-
-                        return <Col key={v.key}>
-                            <PrinterCard printer={printer}/>
+                        return <Col key={printer.key}>
+                            <PrinterCard printer={printer} apiURLBase={apiUrlBase!}/>
                         </Col>
                     })
                 }

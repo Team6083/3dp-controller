@@ -5,7 +5,7 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import './global.css'
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import {Configuration, PrintersApi} from "@/api";
-import {PrintersAPIContext} from "@/app/printersAPIContext";
+import {PrintersAPIContext, PrintersAPIUrlBase} from "@/app/printersAPIContext";
 
 const inter = Inter({subsets: ["latin"]});
 
@@ -19,9 +19,11 @@ export default function RootLayout({children}: Readonly<{ children: React.ReactN
     return (
         <QueryClientProvider client={queryClient}>
             <PrintersAPIContext.Provider value={printersAPI}>
-                <html lang="en">
-                <body className={inter.className}>{children}</body>
-                </html>
+                <PrintersAPIUrlBase.Provider value={basePath}>
+                    <html lang="en">
+                    <body className={inter.className}>{children}</body>
+                    </html>
+                </PrintersAPIUrlBase.Provider>
             </PrintersAPIContext.Provider>
         </QueryClientProvider>
     );

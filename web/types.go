@@ -15,8 +15,9 @@ type Printer struct {
 	AllowNoRegPrint bool    `json:"allow_no_register_print"`
 	NoPauseDuration float64 `json:"no_pause_duration"`
 
-	State   moonraker.PrinterState `json:"state"`
-	Message string                 `json:"message"`
+	State          moonraker.PrinterState `json:"state"`
+	Message        string                 `json:"message"`
+	LastUpdateTime int64                  `json:"last_update_time"`
 
 	DisplayStatus *moonraker.PrinterObjectDisplayStatus `json:"display_status"`
 	PrinterStats  *moonraker.PrinterObjectPrintStats    `json:"printer_stats"`

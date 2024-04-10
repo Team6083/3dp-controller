@@ -43,6 +43,8 @@ func NewServer(ctx context.Context, logger *zap.SugaredLogger, monitors map[stri
 
 	server.registerAPIRoutes(engine.Group(docs.SwaggerInfo.BasePath))
 
+	engine.Static("/ui", "./frontend/out")
+
 	return &server
 }
 
