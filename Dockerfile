@@ -1,4 +1,4 @@
-LABEL authors="kennhuang"
+# syntax=docker/dockerfile:1.7-labs
 
 FROM golang:latest as builder
 
@@ -16,11 +16,11 @@ RUN go install github.com/swaggo/swag/cmd/swag@latest
 # Copy the code into the container
 COPY --exclude=frontend . .
 
-# Build the application
-RUN go build -o main .
-
 # Build openapi docs
 RUN swag init
+
+# Build the application
+RUN go build -o main .
 
 FROM node:latest as app_builder
 
