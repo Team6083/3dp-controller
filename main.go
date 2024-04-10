@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"go.uber.org/zap"
-	"io"
+	"golang.org/x/sys/unix"
 	"os"
 	"os/signal"
 	"strings"
@@ -16,16 +16,16 @@ import (
 )
 
 func getTerminalInput(input chan string) {
+	_, err := unix.IoctlGetWinsize(int(os.Stdin.Fd()), unix.TIOCGWINSZ)
+	if err != nil {
+		return
+	}
+
 	scanner := bufio.NewScanner(os.Stdin)
 
-	_, err := os.Stdin.Stat()
-	if err != nil && !errors.Is(err, io.EOF) {
-		panic(err)
-	} else {
-		for {
-			scanner.Scan()
-			input <- scanner.Text()
-		}
+	for {
+		scanner.Scan()
+		input <- scanner.Text()
 	}
 }
 
