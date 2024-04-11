@@ -9,6 +9,7 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"net/http"
 	"time"
 	"v400_monitor/docs"
@@ -30,11 +31,23 @@ func NewServer(ctx context.Context, isDevMode bool, logger *zap.SugaredLogger, m
 
 	if !isDevMode {
 		gin.SetMode(gin.ReleaseMode)
-
 		engine = gin.New()
 
 		desugar := logger.Desugar()
-		engine.Use(ginzap.Ginzap(desugar, time.RFC3339, true))
+		ginzapConfig := ginzap.Config{
+			TimeFormat:   time.RFC3339,
+			UTC:          true,
+			DefaultLevel: zapcore.InfoLevel,
+			Skipper: func(c *gin.Context) bool {
+				if c.Writer.Status() < http.StatusBadRequest {
+					return false
+				}
+
+				return true
+			},
+		}
+
+		engine.Use(ginzap.GinzapWithConfig(desugar, &ginzapConfig))
 		engine.Use(ginzap.RecoveryWithZap(desugar, true))
 	} else {
 		engine = gin.Default()

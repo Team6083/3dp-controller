@@ -29,25 +29,28 @@ func getTerminalInput(input chan string) {
 	}
 }
 
-func main() {
-	var logger *zap.Logger
-
-	isDevMode := len(os.Getenv("dev")) != 0
-
+func getLogger(isDevMode bool) *zap.Logger {
 	if isDevMode {
-		var err error
-		logger, err = zap.NewDevelopment()
+		logger, err := zap.NewDevelopment()
 		if err != nil {
 			panic(err)
 		}
-	} else {
-		var err error
-		logger, err = zap.NewProduction()
-		if err != nil {
-			panic(err)
-		}
+
+		return logger
 	}
 
+	logger, err := zap.NewProduction()
+	if err != nil {
+		panic(err)
+	}
+
+	return logger
+}
+
+func main() {
+	isDevMode := len(os.Getenv("dev")) != 0
+
+	logger := getLogger(isDevMode)
 	defer func(logger *zap.Logger) {
 		err := logger.Sync()
 		if err != nil && !errors.Is(err, syscall.ENOTTY) {
