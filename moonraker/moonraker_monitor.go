@@ -268,11 +268,21 @@ func (m *Monitor) update() {
 		m.hasLoadedFile = false
 
 		var netErr net.Error
+		var nonOkErr ERRRespNotOk
 		if (errors.As(err, &netErr) && netErr.Timeout()) ||
 			errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNRESET) ||
 			errors.Is(err, syscall.EHOSTDOWN) || errors.Is(err, syscall.ENETDOWN) ||
 			errors.Is(err, syscall.EHOSTUNREACH) || errors.Is(err, syscall.ENETUNREACH) {
 			m.state = Disconnected
+		} else if errors.As(err, &nonOkErr) {
+			if nonOkErr.RespStatusCode() == 502 {
+				m.state = Disconnected
+			} else {
+				m.state = InternalError
+				m.logger.Warnf(
+					"Failed to get printer objects: %s, status_code: %d\n", err, nonOkErr.RespStatusCode(),
+				)
+			}
 		} else {
 			m.state = InternalError
 			m.logger.Errorf("Error getting printer objects: %s\n", err)

@@ -1,10 +1,13 @@
 package moonraker
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -77,6 +80,25 @@ type PrinterObjectsResponse struct {
 	Error *APIError `json:"error"`
 }
 
+type ERRRespNotOk struct {
+	error
+
+	statusCode int
+	respBody   []byte
+}
+
+func (e ERRRespNotOk) RespStatusCode() int {
+	return e.statusCode
+}
+
+func (e ERRRespNotOk) RespBody() []byte {
+	return e.respBody
+}
+
+func (e ERRRespNotOk) Error() string {
+	return e.error.Error()
+}
+
 func GetPrinterObjects(ctx context.Context) (*PrinterObjectsResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -108,8 +130,21 @@ func GetPrinterObjects(ctx context.Context) (*PrinterObjectsResponse, error) {
 
 	defer resp.Body.Close()
 
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, ERRRespNotOk{
+			error:      errors.New("non-200 http response"),
+			statusCode: resp.StatusCode,
+			respBody:   b,
+		}
+	}
+
 	out := new(PrinterObjectsResponse)
-	err = json.NewDecoder(resp.Body).Decode(out)
+	err = json.NewDecoder(bytes.NewReader(b)).Decode(out)
 	if err != nil {
 		return nil, err
 	}
