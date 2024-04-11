@@ -40,10 +40,10 @@ func NewServer(ctx context.Context, isDevMode bool, logger *zap.SugaredLogger, m
 			DefaultLevel: zapcore.InfoLevel,
 			Skipper: func(c *gin.Context) bool {
 				if c.Writer.Status() < http.StatusBadRequest {
-					return false
+					return true
 				}
 
-				return true
+				return false
 			},
 		}
 
