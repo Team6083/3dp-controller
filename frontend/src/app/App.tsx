@@ -48,7 +48,7 @@ function Home() {
     return (
         <Container className="py-3" fluid="md">
             <Row xs={1} md={2} className="mb-4">
-                <Col className="align-content-center"><h1 className="mb-0">3D Printer Controller</h1></Col>
+                <Col className="align-content-center"><h1 className="mb-0">3D Printer Control Hub</h1></Col>
                 <Col className="align-content-center text-end">
                     <p className="fs-6 mb-0">{Array.from(printerStat.entries())
                         .map(([state, count], idx) => {

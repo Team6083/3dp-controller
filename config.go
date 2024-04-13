@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"gopkg.in/yaml.v3"
+	"net/url"
 	"os"
 	"text/template"
 	"time"
@@ -19,10 +20,17 @@ type RawConfigDisplayMessages struct {
 	PauseMessage     string `yaml:"pause_message"`
 }
 
+type RawConfigController struct {
+	Url      string `yaml:"url"`
+	HubId    string `yaml:"hub_id"`
+	FailMode string `yaml:"fail_mode"`
+}
+
 type RawConfig struct {
 	Server          ConfigServer             `yaml:"server"`
 	NoPauseDuration string                   `yaml:"no_pause_duration"`
 	DisplayMessages RawConfigDisplayMessages `yaml:"display_messages"`
+	Controller      RawConfigController      `yaml:"controller"`
 	Printers        []struct {
 		Key  string `yaml:"key"`
 		Name string `yaml:"name"`
@@ -43,6 +51,23 @@ const (
 	FailModeNoPrint    ControllerFailMode = "no_print"
 )
 
+func ParseFailMode(s string) (ControllerFailMode, error) {
+	switch s {
+	case FailModeNoPrint.String():
+		return FailModeNoPrint, nil
+	case FailModeAllowPrint.String(), "":
+		return FailModeAllowPrint, nil
+	default:
+		return "", errors.New(fmt.Sprintf("Unknown ControllerFailMode %s", s))
+	}
+}
+
+type ConfigController struct {
+	Url      *url.URL
+	HubId    string
+	FailMode ControllerFailMode
+}
+
 type ConfigPrinter struct {
 	Key                string
 	Name               string
@@ -59,6 +84,7 @@ type Config struct {
 	Server          ConfigServer
 	NoPauseDuration time.Duration
 	DisplayMessages ConfigDisplayMessages
+	Controller      ConfigController
 	Printers        map[string]ConfigPrinter
 }
 
@@ -106,11 +132,34 @@ func ParseRawConfig(raw RawConfig) (*Config, error) {
 		PauseMessage:     pauseMsg,
 	}
 
-	noPauseDuration, err := time.ParseDuration(raw.NoPauseDuration)
-	if err != nil {
-		return nil, err
+	{
+		noPauseDuration, err := time.ParseDuration(raw.NoPauseDuration)
+		if err != nil {
+			return nil, err
+		}
+		cfg.NoPauseDuration = noPauseDuration
 	}
-	cfg.NoPauseDuration = noPauseDuration
+
+	if raw.Controller.Url != "" {
+		controllerUrl, err := url.Parse(raw.Controller.Url)
+		if err != nil {
+			return nil, err
+		}
+		failMode, err := ParseFailMode(raw.Controller.FailMode)
+		if err != nil {
+			return nil, err
+		}
+
+		if raw.Controller.HubId == "" {
+			return nil, fmt.Errorf("hub_id is required")
+		}
+
+		cfg.Controller = ConfigController{
+			Url:      controllerUrl,
+			HubId:    raw.Controller.HubId,
+			FailMode: failMode,
+		}
+	}
 
 	for _, rp := range raw.Printers {
 		p := ConfigPrinter{
@@ -119,14 +168,11 @@ func ParseRawConfig(raw RawConfig) (*Config, error) {
 			Url:  rp.Url,
 		}
 
-		switch rp.ControllerFailMode {
-		case FailModeNoPrint.String():
-			p.ControllerFailMode = FailModeNoPrint
-		case FailModeAllowPrint.String(), "":
-			p.ControllerFailMode = FailModeAllowPrint
-		default:
-			return nil, errors.New(fmt.Sprintf("Unknown ControllerFailMode %s", rp.ControllerFailMode))
+		failMode, err := ParseFailMode(rp.ControllerFailMode)
+		if err != nil {
+			return nil, err
 		}
+		p.ControllerFailMode = failMode
 
 		if _, ok := cfg.Printers[p.Key]; ok {
 			return nil, fmt.Errorf("duplicated printer '%s'", p.Key)

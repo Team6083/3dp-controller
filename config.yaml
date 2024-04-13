@@ -8,6 +8,10 @@ display_messages:
   will_pause_message: Printer will stop in {{.RemainDurationStr}} since this job is not registered
   pause_message: Printer stop due to non registered job
 
+controller:
+  url: http://localhost:8081/controller/v1
+  hub_id: "hub1"
+  fail_mode: "allow_print"
 
 printers:
   - key: v400-1
@@ -34,7 +38,6 @@ printers:
     name: "Virtual Printer #1"
     url: http://10.0.26.2:7125/
     controller_fail_mode: "no_print"
-    #controller_fail_mode: "allow_print"
   - key: virtual2
     name: "Virtual Printer #2"
     url: http://10.0.26.2:6125/

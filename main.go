@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"v400_monitor/controller"
 	"v400_monitor/moonraker"
 	"v400_monitor/web"
 )
@@ -94,6 +95,13 @@ func main() {
 		monitors[p.Key] = m
 	}
 
+	var ctrlConnector *controller.Connector
+	if config.Controller.Url != nil {
+		ctrlConnector = controller.NewConnector(config.Controller.Url, config.Controller.HubId,
+			sugar.Named("controller"), monitors)
+		ctrlConnector.Connect(ctx)
+	}
+
 	server := web.NewServer(ctx, isDevMode, sugar.Named("web"), monitors)
 	go server.Run()
 
@@ -118,6 +126,10 @@ func main() {
 			}
 		case s := <-interrupt:
 			go server.Shutdown()
+
+			if ctrlConnector != nil {
+				go ctrlConnector.Close()
+			}
 
 			for _, m := range monitors {
 				m.Stop()
