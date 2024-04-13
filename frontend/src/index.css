@@ -19,3 +19,9 @@ code {
 .card-title .badge {
   vertical-align: bottom;
 }
+
+.card-img.thumb-img {
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+}

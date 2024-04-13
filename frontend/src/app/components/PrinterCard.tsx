@@ -69,9 +69,10 @@ function PrinterCard({printer, apiURLBase}: PrinterCardProps) {
                 {stateText} {sdPercent ?? null}
             </span>
         </Card.Header>
-        {jobInfo?.imageUrl ? <div className="overflow-hidden align-content-center" style={{height: "150px"}}>
-            <Card.Img variant="top" src={apiURLBase + jobInfo.imageUrl}/>
-        </div> : null}
+        {jobInfo?.imageUrl ?
+            <div className="overflow-hidden align-content-center text-center" style={{height: "150px"}}>
+                <Card.Img className="thumb-img" src={apiURLBase + jobInfo.imageUrl}/>
+            </div> : null}
         <Card.Body>
             {(() => {
                 if (isPrinterDisconnected) {

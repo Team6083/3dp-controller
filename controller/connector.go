@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"time"
 	"v400_monitor/controller/api"
+	"v400_monitor/internal/util"
 	"v400_monitor/moonraker"
 )
 
@@ -128,13 +129,17 @@ func (c *Connector) update() {
 
 	ctrlMessages, err := api.UpdateHubStatus(c.ctx, updates)
 	if err != nil {
+		if util.IsErrNetworkProblem(err) {
+			c.logger.Warnln("can't connect to controller")
+			return
+		}
+
 		c.logger.Errorf("update hub status err: %s\n", err)
 
 		var errRespNotOk api.ERRRespNotOk
 		if ok := errors.As(err, &errRespNotOk); ok {
 			c.logger.Error(errRespNotOk)
 		}
-
 		return
 	}
 

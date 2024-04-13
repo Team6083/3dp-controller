@@ -6,11 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"go.uber.org/zap"
-	"net"
 	"net/url"
-	"syscall"
 	"text/template"
 	"time"
+	"v400_monitor/internal/util"
 )
 
 type MonitorConfig struct {
@@ -267,12 +266,8 @@ func (m *Monitor) update() {
 		m.printerObjects = nil
 		m.hasLoadedFile = false
 
-		var netErr net.Error
 		var nonOkErr ERRRespNotOk
-		if (errors.As(err, &netErr) && netErr.Timeout()) ||
-			errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNRESET) ||
-			errors.Is(err, syscall.EHOSTDOWN) || errors.Is(err, syscall.ENETDOWN) ||
-			errors.Is(err, syscall.EHOSTUNREACH) || errors.Is(err, syscall.ENETUNREACH) {
+		if util.IsErrNetworkProblem(err) {
 			m.state = Disconnected
 		} else if errors.As(err, &nonOkErr) {
 			if nonOkErr.RespStatusCode() == 502 {
