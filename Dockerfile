@@ -52,6 +52,7 @@ COPY frontend .
 COPY --from=openapi_gen /build/api ./src/api
 
 # Build frontend
+ENV VITE_API_URL=/api/v1
 RUN npm run build
 
 FROM alpine
