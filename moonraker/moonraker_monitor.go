@@ -450,6 +450,10 @@ func (m *Monitor) getLatestJob(ctx context.Context) (*Job, error) {
 		return nil, fmt.Errorf("api response %d %s", resp.Error.Code, resp.Error.Message)
 	}
 
+	if len(resp.Result.Jobs) == 0 {
+		return nil, nil
+	}
+
 	return &(resp.Result.Jobs[0]), nil
 }
 
