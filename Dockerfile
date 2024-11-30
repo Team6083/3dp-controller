@@ -58,7 +58,7 @@ FROM alpine
 
 WORKDIR /dist
 COPY --from=builder /build/main .
-COPY --from=app_builder /build/build frontend/build
+COPY --from=app_builder /build/dist frontend/dist
 
 # Timezone file
 COPY --from=builder /usr/local/go/lib/time/zoneinfo.zip /opt/zoneinfo.zip

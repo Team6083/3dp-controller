@@ -69,7 +69,7 @@ func NewServer(ctx context.Context, isDevMode bool, logger *zap.SugaredLogger, m
 
 	server.registerAPIRoutes(engine.Group(docs.SwaggerInfo.BasePath))
 
-	feFS := http.FileServer(noListFileSystem{http.Dir("./frontend/build")})
+	feFS := http.FileServer(noListFileSystem{http.Dir("./frontend/dist")})
 	engine.NoRoute(func(c *gin.Context) {
 		feFS.ServeHTTP(c.Writer, c.Request)
 	})
