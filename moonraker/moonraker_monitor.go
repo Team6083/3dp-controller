@@ -13,9 +13,11 @@ import (
 )
 
 type MonitorConfig struct {
-	NoPauseDuration  time.Duration
-	WillPauseMessage *template.Template
-	PauseMessage     *template.Template
+	NoPauseDuration      time.Duration
+	ShouldPauseProgress  float32
+	ShouldCancelProgress float32
+	WillPauseMessage     *template.Template
+	PauseMessage         *template.Template
 }
 
 type PrinterState string
@@ -344,12 +346,21 @@ func (m *Monitor) update() {
 				if m.state == Printing && !printerShouldPrint {
 					m.logger.Infoln("Printer should not print now!!")
 
-					if printDuration > m.config.NoPauseDuration {
+					progress := printerObjects.VirtualSDCard.Progress
+
+					if printDuration > m.config.NoPauseDuration ||
+						(m.config.ShouldPauseProgress > 0 && progress >= m.config.ShouldPauseProgress) {
 						m.jobPausedByMonitor = true
 					}
 
-					if printerObjects.VirtualSDCard.Progress > 0.5 {
-						// Stop job
+					if m.config.ShouldCancelProgress > 0 && progress >= m.config.ShouldCancelProgress {
+						if m.state == Printing {
+							m.logger.Infoln("Canceling")
+							err := CancelPrint(m.ctx)
+							if err != nil {
+								m.logger.Errorf("Failed to cancel printing: %s\n", err)
+							}
+						}
 					}
 				}
 

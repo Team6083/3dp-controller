@@ -3,6 +3,7 @@ server:
   port: 8000
 
 no_pause_duration: 5m
+should_cancel_progress: 0.006
 
 display_messages:
   will_pause_message: Printer will stop in {{.RemainDurationStr}} since this job is not registered

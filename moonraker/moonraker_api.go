@@ -244,6 +244,42 @@ func PausePrint(ctx context.Context) error {
 	return nil
 }
 
+func CancelPrint(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	moonrakerAPIUrl := ctx.Value("moonrakerAPIUrl").(*url.URL)
+
+	// build URL
+	u := moonrakerAPIUrl.JoinPath("/printer/print/cancel")
+
+	// build request
+	req, err := http.NewRequestWithContext(ctx, "POST", u.String(), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// do request
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	out := new(PausePrintResponse)
+	err = json.NewDecoder(resp.Body).Decode(out)
+	if err != nil {
+		return err
+	}
+
+	if out.Result != "ok" {
+		return errors.New(out.Result)
+	}
+
+	return nil
+}
+
 // --------------
 // Resume a Print
 

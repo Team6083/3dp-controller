@@ -6,6 +6,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"net/url"
 	"os"
+	"strconv"
 	"text/template"
 	"time"
 )
@@ -27,11 +28,13 @@ type RawConfigController struct {
 }
 
 type RawConfig struct {
-	Server          ConfigServer             `yaml:"server"`
-	NoPauseDuration string                   `yaml:"no_pause_duration"`
-	DisplayMessages RawConfigDisplayMessages `yaml:"display_messages"`
-	Controller      RawConfigController      `yaml:"controller"`
-	Printers        []struct {
+	Server               ConfigServer             `yaml:"server"`
+	NoPauseDuration      string                   `yaml:"no_pause_duration"`
+	ShouldPauseProgress  string                   `yaml:"should_pause_progress"`
+	ShouldCancelProgress string                   `yaml:"should_cancel_progress"`
+	DisplayMessages      RawConfigDisplayMessages `yaml:"display_messages"`
+	Controller           RawConfigController      `yaml:"controller"`
+	Printers             []struct {
 		Key  string `yaml:"key"`
 		Name string `yaml:"name"`
 		Url  string `yaml:"url"`
@@ -81,11 +84,13 @@ type ConfigDisplayMessages struct {
 }
 
 type Config struct {
-	Server          ConfigServer
-	NoPauseDuration time.Duration
-	DisplayMessages ConfigDisplayMessages
-	Controller      ConfigController
-	Printers        map[string]ConfigPrinter
+	Server               ConfigServer
+	NoPauseDuration      time.Duration
+	ShouldPauseProgress  float32
+	ShouldCancelProgress float32
+	DisplayMessages      ConfigDisplayMessages
+	Controller           ConfigController
+	Printers             map[string]ConfigPrinter
 }
 
 func LoadConfig(fileName string) (*Config, error) {
@@ -138,6 +143,24 @@ func ParseRawConfig(raw RawConfig) (*Config, error) {
 			return nil, err
 		}
 		cfg.NoPauseDuration = noPauseDuration
+	}
+
+	if raw.ShouldPauseProgress != "" {
+		f, err := strconv.ParseFloat(raw.ShouldPauseProgress, 32)
+		if err != nil {
+			return nil, err
+		}
+
+		cfg.ShouldPauseProgress = float32(f)
+	}
+
+	if raw.ShouldCancelProgress != "" {
+		f, err := strconv.ParseFloat(raw.ShouldCancelProgress, 32)
+		if err != nil {
+			return nil, err
+		}
+
+		cfg.ShouldCancelProgress = float32(f)
 	}
 
 	if raw.Controller.Url != "" {
