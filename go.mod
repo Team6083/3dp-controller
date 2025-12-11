@@ -6,14 +6,14 @@ toolchain go1.24.9
 
 require (
 	github.com/gin-contrib/cors v1.7.6
-	github.com/gin-contrib/zap v1.1.5
+	github.com/gin-contrib/zap v1.1.6
 	github.com/gin-gonic/gin v1.11.0
 	github.com/goccy/go-json v0.10.5
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.1
 	github.com/swaggo/swag v1.16.6
-	go.uber.org/zap v1.27.0
-	golang.org/x/sys v0.38.0
+	go.uber.org/zap v1.27.1
+	golang.org/x/sys v0.39.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -54,7 +54,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/arch v0.23.0 // indirect
-	golang.org/x/crypto v0.44.0 // indirect
+	golang.org/x/crypto v0.45.0 // indirect
 	golang.org/x/mod v0.30.0 // indirect
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
