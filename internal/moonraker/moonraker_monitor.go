@@ -6,10 +6,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"go.uber.org/zap"
 	"net/url"
 	"text/template"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 type MonitorConfig struct {

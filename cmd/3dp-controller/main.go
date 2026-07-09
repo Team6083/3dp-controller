@@ -9,12 +9,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"go.uber.org/zap"
-	"golang.org/x/sys/unix"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+
+	"go.uber.org/zap"
+	"golang.org/x/sys/unix"
 )
 
 func getTerminalInput(input chan string) {

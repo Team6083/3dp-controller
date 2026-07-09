@@ -6,9 +6,10 @@ import (
 	"3dp-controller/internal/util"
 	"context"
 	"errors"
-	"go.uber.org/zap"
 	"net/url"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 type Connector struct {

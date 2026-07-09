@@ -4,12 +4,13 @@ import (
 	"3dp-controller/internal/moonraker"
 	"context"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
@@ -21,13 +22,14 @@ func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
 	r.GET("/printers/:key/latest_thumb", s.GetLatestThumbnail)
 }
 
-// @BasePath /api/v1
+//	@BasePath	/api/v1
 
 // PingHandler godoc
-// @Summary Ping/Pong
-// @Produce json
-// @Success 200 {string} Pong
-// @Router /ping [get]
+//
+//	@Summary	Ping/Pong
+//	@Produce	json
+//	@Success	200	{string}	Pong
+//	@Router		/ping [get]
 func (s *Server) PingHandler(g *gin.Context) {
 	g.JSON(http.StatusOK, gin.H{
 		"message": "pong",
@@ -35,11 +37,12 @@ func (s *Server) PingHandler(g *gin.Context) {
 }
 
 // PrintersHandler godoc
-// @Summary Get list of printers
-// @Tags Printers
-// @Produce json
-// @Success 200 {array} Printer
-// @Router /printers [get]
+//
+//	@Summary	Get list of printers
+//	@Tags		Printers
+//	@Produce	json
+//	@Success	200	{array}	Printer
+//	@Router		/printers [get]
 func (s *Server) PrintersHandler(g *gin.Context) {
 	printers := make([]Printer, 0)
 
@@ -51,12 +54,13 @@ func (s *Server) PrintersHandler(g *gin.Context) {
 }
 
 // PrinterHandler godoc
-// @Summary Get the printers
-// @Tags Printers
-// @Param key path string true "key of printer"
-// @Produce json
-// @Success 200 {object} Printer
-// @Router /printers/{key} [get]
+//
+//	@Summary	Get the printers
+//	@Tags		Printers
+//	@Param		key	path	string	true	"key of printer"
+//	@Produce	json
+//	@Success	200	{object}	Printer
+//	@Router		/printers/{key} [get]
 func (s *Server) PrinterHandler(g *gin.Context) {
 	key := g.Param("key")
 
@@ -119,15 +123,16 @@ func makePrinter(key string, m *moonraker.Monitor) Printer {
 }
 
 // UpdatePrinter godoc
-// @Summary Update a printer
-// @Tags Printers
-// @Param key 				path 	string 		true 	"key of printer"
-// @Param regJobId 			query 	string 		false 	"jobId of registered job"
-// @Param allowNoRegPrint 	query 	boolean 	false	"allow printing without registration"
-// @Produce json
-// @Success 200 {object} UpdatePrinterResponse
-// @Failure 404 {object} APIErrorResp
-// @Router /printers/{key} [put]
+//
+//	@Summary	Update a printer
+//	@Tags		Printers
+//	@Param		key				path	string	true	"key of printer"
+//	@Param		regJobId		query	string	false	"jobId of registered job"
+//	@Param		allowNoRegPrint	query	boolean	false	"allow printing without registration"
+//	@Produce	json
+//	@Success	200	{object}	UpdatePrinterResponse
+//	@Failure	404	{object}	APIErrorResp
+//	@Router		/printers/{key} [put]
 func (s *Server) UpdatePrinter(g *gin.Context) {
 	printerKey := g.Param("key")
 
@@ -171,12 +176,13 @@ func (s *Server) UpdatePrinter(g *gin.Context) {
 }
 
 // GetLatestThumbnail godoc
-// @Summary Get thumbnail for a file
-// @Tags Printers
-// @Param key				path	string	true	"key of printer"
-// @Produce image/png
-// @Success 200
-// @Router /printers/{key}/latest_thumb [get]
+//
+//	@Summary	Get thumbnail for a file
+//	@Tags		Printers
+//	@Param		key	path	string	true	"key of printer"
+//	@Produce	image/png
+//	@Success	200
+//	@Router		/printers/{key}/latest_thumb [get]
 func (s *Server) GetLatestThumbnail(g *gin.Context) {
 	printerKey := g.Param("key")
 

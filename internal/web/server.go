@@ -5,6 +5,9 @@ import (
 	"3dp-controller/internal/moonraker"
 	"context"
 	"errors"
+	"net/http"
+	"time"
+
 	"github.com/gin-contrib/cors"
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
@@ -12,8 +15,6 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"net/http"
-	"time"
 )
 
 type Server struct {

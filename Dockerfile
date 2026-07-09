@@ -19,7 +19,7 @@ RUN go install github.com/swaggo/swag/cmd/swag@latest
 COPY --exclude=frontend . .
 
 # Build openapi docs
-RUN swag init -g cmd/3dp-controller/main.go --parseDependency --parseInternal
+RUN swag init -g cmd/3dp-controller/main.go
 
 # Build the application
 RUN go build -o main ./cmd/3dp-controller
