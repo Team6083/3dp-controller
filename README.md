@@ -46,7 +46,7 @@ frontend（React + Vite）
 2. 產生後端 Swagger 文件（`internal/web/api.go` 的 handler 註解會被解析）：
 
    ```bash
-   swag init -g cmd/3dp-controller/main.go --parseDependency --parseInternal
+   swag init -g cmd/3dp-controller/main.go
    ```
 
 3. 啟動後端（開發模式，會開啟 `/swagger/index.html`）：

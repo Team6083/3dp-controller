@@ -42,6 +42,6 @@ frontend/src/api/**
 node_modules
 
 # Project Specific
-/v400_monitor
+/3dp-controller
 /docs
 /config.yaml

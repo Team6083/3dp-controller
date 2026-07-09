@@ -32,6 +32,6 @@ go.work.sum
 .vscode/
 
 # Project Specific
-/v400_monitor
+/3dp-controller
 /docs
 /config.yaml
