@@ -1,6 +1,7 @@
 package moonraker
 
 import (
+	"3dp-controller/internal/util"
 	"bytes"
 	"context"
 	"errors"
@@ -9,7 +10,6 @@ import (
 	"net/url"
 	"text/template"
 	"time"
-	"v400_monitor/internal/util"
 )
 
 type MonitorConfig struct {

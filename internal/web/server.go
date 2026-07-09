@@ -1,6 +1,8 @@
 package web
 
 import (
+	"3dp-controller/docs"
+	"3dp-controller/internal/moonraker"
 	"context"
 	"errors"
 	"github.com/gin-contrib/cors"
@@ -12,8 +14,6 @@ import (
 	"go.uber.org/zap/zapcore"
 	"net/http"
 	"time"
-	"v400_monitor/docs"
-	"v400_monitor/moonraker"
 )
 
 type Server struct {

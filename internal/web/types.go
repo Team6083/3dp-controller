@@ -1,6 +1,6 @@
 package web
 
-import "v400_monitor/moonraker"
+import "3dp-controller/internal/moonraker"
 
 type APIErrorResp struct {
 	Error string `json:"error"`

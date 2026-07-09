@@ -1,4 +1,4 @@
-module v400_monitor
+module 3dp-controller
 
 go 1.25.0
 

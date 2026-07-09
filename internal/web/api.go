@@ -1,6 +1,7 @@
 package web
 
 import (
+	"3dp-controller/internal/moonraker"
 	"context"
 	"fmt"
 	"github.com/gin-gonic/gin"
@@ -9,7 +10,6 @@ import (
 	"net/url"
 	"strconv"
 	"time"
-	"v400_monitor/moonraker"
 )
 
 func (s *Server) registerAPIRoutes(r *gin.RouterGroup) {
