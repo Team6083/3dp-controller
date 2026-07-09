@@ -1,19 +1,21 @@
 package main
 
 import (
+	"3dp-controller/internal/config"
+	"3dp-controller/internal/controller"
+	"3dp-controller/internal/moonraker"
+	"3dp-controller/internal/web"
 	"bufio"
 	"context"
 	"errors"
 	"fmt"
-	"go.uber.org/zap"
-	"golang.org/x/sys/unix"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
-	"v400_monitor/controller"
-	"v400_monitor/moonraker"
-	"v400_monitor/web"
+
+	"go.uber.org/zap"
+	"golang.org/x/sys/unix"
 )
 
 func getTerminalInput(input chan string) {
@@ -67,7 +69,7 @@ func main() {
 	termInput := make(chan string)
 	go getTerminalInput(termInput)
 
-	config, err := LoadConfig("./config.yaml")
+	cfg, err := config.LoadConfig("./config.yaml")
 	if err != nil {
 		panic(err)
 	}
@@ -76,13 +78,13 @@ func main() {
 
 	ctx := context.Background()
 
-	for _, p := range config.Printers {
+	for _, p := range cfg.Printers {
 		monConfig := moonraker.MonitorConfig{
-			NoPauseDuration:      config.NoPauseDuration,
-			ShouldPauseProgress:  config.ShouldPauseProgress,
-			ShouldCancelProgress: config.ShouldCancelProgress,
-			WillPauseMessage:     config.DisplayMessages.WillPauseMessage,
-			PauseMessage:         config.DisplayMessages.PauseMessage,
+			NoPauseDuration:      cfg.NoPauseDuration,
+			ShouldPauseProgress:  cfg.ShouldPauseProgress,
+			ShouldCancelProgress: cfg.ShouldCancelProgress,
+			WillPauseMessage:     cfg.DisplayMessages.WillPauseMessage,
+			PauseMessage:         cfg.DisplayMessages.PauseMessage,
 		}
 
 		m, err := moonraker.NewMonitor(p.Name, p.Url, monConfig, sugar.With("PrinterName", p.Name))
@@ -90,7 +92,7 @@ func main() {
 			panic(err)
 		}
 
-		m.SetAllowNoRegPrint(p.ControllerFailMode != FailModeNoPrint)
+		m.SetAllowNoRegPrint(p.ControllerFailMode != config.FailModeNoPrint)
 
 		m.Start(ctx)
 
@@ -98,8 +100,8 @@ func main() {
 	}
 
 	var ctrlConnector *controller.Connector
-	if config.Controller.Url != nil {
-		ctrlConnector = controller.NewConnector(config.Controller.Url, config.Controller.HubId,
+	if cfg.Controller.Url != nil {
+		ctrlConnector = controller.NewConnector(cfg.Controller.Url, cfg.Controller.HubId,
 			sugar.Named("controller"), monitors)
 		ctrlConnector.Connect(ctx)
 	}

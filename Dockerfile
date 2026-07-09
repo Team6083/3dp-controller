@@ -19,10 +19,10 @@ RUN go install github.com/swaggo/swag/cmd/swag@latest
 COPY --exclude=frontend . .
 
 # Build openapi docs
-RUN swag init
+RUN swag init -g cmd/3dp-controller/main.go
 
 # Build the application
-RUN go build -o main .
+RUN go build -o main ./cmd/3dp-controller
 
 FROM openapitools/openapi-generator-cli as openapi_gen
 

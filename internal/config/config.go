@@ -1,14 +1,15 @@
-package main
+package config
 
 import (
 	"errors"
 	"fmt"
-	"gopkg.in/yaml.v3"
 	"net/url"
 	"os"
 	"strconv"
 	"text/template"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 type ConfigServer struct {
