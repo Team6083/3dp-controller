@@ -1,44 +1,22 @@
 package moonraker
 
 import (
+	"3dp-controller/internal/printer"
 	"3dp-controller/internal/util"
 	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
-	"text/template"
 	"time"
 
 	"go.uber.org/zap"
 )
 
-type MonitorConfig struct {
-	NoPauseDuration      time.Duration
-	ShouldPauseProgress  float32
-	ShouldCancelProgress float32
-	WillPauseMessage     *template.Template
-	PauseMessage         *template.Template
-}
-
-type PrinterState string
-
-const (
-	KlippyStartup      PrinterState = "klippy_startup"
-	KlippyShutdown     PrinterState = "klippy_shutdown"
-	KlippyError        PrinterState = "klippy_error"
-	KlippyDisconnected PrinterState = "klippy_disconnected"
-
-	Ready    PrinterState = "ready"
-	PrePrint PrinterState = "pre_print"
-	Printing PrinterState = "printing"
-	Pause    PrinterState = "pause"
-	Error    PrinterState = "error"
-
-	Disconnected  PrinterState = "disconnected"
-	Unknown       PrinterState = "unknown"
-	InternalError PrinterState = "internal_error" // Internal error
-)
+var _ printer.Printer = (*Monitor)(nil)
+var _ printer.Thumbnailer = (*Monitor)(nil)
 
 type MonitorPrinterObjects struct {
 	DisplayStatus PrinterObjectDisplayStatus
@@ -52,14 +30,15 @@ type Monitor struct {
 	printerName string
 	printerUrl  *url.URL
 	logger      *zap.SugaredLogger
-	config      MonitorConfig
+	config      printer.MonitorConfig
 
 	registeredJobId    string
 	allowNoRegPrint    bool
 	jobPausedByMonitor bool
 	lastMessage        string
 
-	state          PrinterState
+	state          printer.PrinterState
+	lastError      *printer.ErrorInfo
 	lastUpdateTime time.Time
 	printerObjects *MonitorPrinterObjects
 	hasLoadedFile  bool
@@ -79,12 +58,36 @@ func (m *Monitor) PrinterUrl() string {
 	return m.printerUrl.String()
 }
 
-func (m *Monitor) Config() MonitorConfig {
+func (m *Monitor) PrinterType() string {
+	return "moonraker"
+}
+
+func (m *Monitor) Config() printer.MonitorConfig {
 	return m.config
 }
 
-func (m *Monitor) State() PrinterState {
+func (m *Monitor) State() printer.PrinterState {
 	return m.state
+}
+
+func (m *Monitor) Message() string {
+	if m.printerObjects == nil {
+		return ""
+	}
+
+	if m.printerObjects.Webhooks.State != "ready" {
+		return m.printerObjects.Webhooks.StateMessage
+	}
+
+	return m.printerObjects.PrintStats.Message
+}
+
+func (m *Monitor) ErrorDetail() *printer.ErrorInfo {
+	if m.state != printer.Error && m.state != printer.InternalError {
+		return nil
+	}
+
+	return m.lastError
 }
 
 func (m *Monitor) LastUpdateTime() time.Time {
@@ -101,6 +104,54 @@ func (m *Monitor) LatestJob() *Job {
 
 func (m *Monitor) LoadedFile() *GCodeMetadata {
 	return m.loadedFile
+}
+
+func (m *Monitor) Job() *printer.Job {
+	if m.latestJob == nil {
+		return nil
+	}
+
+	job := m.latestJob
+
+	j := &printer.Job{
+		JobId:  job.JobId,
+		Name:   job.Filename,
+		Status: job.Status,
+	}
+
+	if job.Metadata != nil {
+		j.ContentId = job.Metadata.UUID
+		j.HasThumbnail = len(job.Metadata.Thumbnails) > 0
+	}
+
+	if job.StartTime > 0 {
+		t := time.UnixMilli(int64(job.StartTime * 1000))
+		j.StartTime = &t
+	}
+
+	if job.EndTime > 0 {
+		t := time.UnixMilli(int64(job.EndTime * 1000))
+		j.EndTime = &t
+	}
+
+	if job.Status == "in_progress" && m.printerObjects != nil {
+		progress := m.printerObjects.VirtualSDCard.Progress
+		j.Progress = &progress
+
+		printDuration := printer.Seconds(m.printerObjects.PrintStats.GetPrintDuration().Seconds())
+		j.PrintDuration = &printDuration
+
+		totalDuration := printer.Seconds(m.printerObjects.PrintStats.GetTotalDuration().Seconds())
+		j.TotalDuration = &totalDuration
+
+		remaining := totalDuration - printDuration
+		if remaining < 0 {
+			remaining = 0
+		}
+		j.EstimatedRemaining = &remaining
+	}
+
+	return j
 }
 
 func (m *Monitor) RegisteredJobId() string {
@@ -138,7 +189,7 @@ func (m *Monitor) SetAllowNoRegPrint(allowNoRegPrint bool) {
 	}
 }
 
-func NewMonitor(name string, printerURL string, config MonitorConfig, logger *zap.SugaredLogger) (*Monitor, error) {
+func NewMonitor(name string, printerURL string, config printer.MonitorConfig, logger *zap.SugaredLogger) (*Monitor, error) {
 	m := new(Monitor)
 
 	u, err := url.Parse(printerURL)
@@ -155,7 +206,7 @@ func NewMonitor(name string, printerURL string, config MonitorConfig, logger *za
 	m.allowNoRegPrint = true
 	m.jobPausedByMonitor = false
 
-	m.state = Disconnected
+	m.state = printer.Disconnected
 	m.lastUpdateTime = time.Now()
 	m.hasLoadedFile = false
 
@@ -202,7 +253,7 @@ func (m *Monitor) Start(ctx context.Context) {
 			case <-ticker2.C:
 				// Update latest job
 				go func() {
-					if m.state == Disconnected || m.state == InternalError {
+					if m.state == printer.Disconnected || m.state == printer.InternalError {
 						m.latestJob = nil
 						return
 					}
@@ -230,7 +281,7 @@ func (m *Monitor) Start(ctx context.Context) {
 
 				// Update loaded file
 				go func() {
-					if m.state == Disconnected || m.state == InternalError {
+					if m.state == printer.Disconnected || m.state == printer.InternalError {
 						m.loadedFile = nil
 						return
 					}
@@ -271,28 +322,38 @@ func (m *Monitor) update() {
 
 		var nonOkErr ERRRespNotOk
 		if util.IsErrNetworkProblem(err) {
-			m.state = Disconnected
+			m.state = printer.Disconnected
+			m.lastError = nil
 		} else if errors.As(err, &nonOkErr) {
 			if nonOkErr.RespStatusCode() == 502 {
-				m.state = Disconnected
+				m.state = printer.Disconnected
+				m.lastError = nil
 			} else {
-				m.state = InternalError
+				m.state = printer.InternalError
+				code := nonOkErr.RespStatusCode()
+				m.lastError = &printer.ErrorInfo{Code: &code, Message: err.Error()}
 				m.logger.Warnf(
 					"Failed to get printer objects: %s, status_code: %d\n", err, nonOkErr.RespStatusCode(),
 				)
 			}
 		} else {
-			m.state = InternalError
+			m.state = printer.InternalError
+			m.lastError = &printer.ErrorInfo{Message: err.Error()}
 			m.logger.Errorf("Error getting printer objects: %s\n", err)
 		}
 	} else {
 		if printerObjectsResponse.Result.Status == nil {
-			m.state = Error
+			m.state = printer.Error
 			m.hasLoadedFile = false
+
+			code := printerObjectsResponse.Error.Code
+			m.lastError = &printer.ErrorInfo{Code: &code, Message: printerObjectsResponse.Error.Message}
 
 			m.logger.Errorf("MoonrakerError: %d %s\n",
 				printerObjectsResponse.Error.Code, printerObjectsResponse.Error.Message)
 		} else {
+			m.lastError = nil
+
 			status := printerObjectsResponse.Result.Status
 
 			printerObjects := new(MonitorPrinterObjects)
@@ -309,15 +370,11 @@ func (m *Monitor) update() {
 
 				switch status.Webhooks.State {
 				case "startup":
-					m.state = KlippyStartup
-				case "shutdown":
-					m.state = KlippyShutdown
-				case "error":
-					m.state = KlippyError
-				case "disconnected":
-					m.state = KlippyDisconnected
+					m.state = printer.Unknown
+				case "shutdown", "error", "disconnected":
+					m.state = printer.Error
 				default:
-					m.state = Unknown
+					m.state = printer.Unknown
 				}
 			} else {
 				printerShouldPrint := m.allowNoRegPrint || m.registeredJobId != ""
@@ -325,26 +382,26 @@ func (m *Monitor) update() {
 
 				switch printerObjects.PrintStats.State {
 				case "standby", "complete", "cancelled":
-					m.state = Ready
+					m.state = printer.Ready
 				case "printing":
 					if printDuration > 0 {
-						m.state = Printing
+						m.state = printer.Printing
 					} else {
-						m.state = PrePrint
+						m.state = printer.PrePrint
 					}
 				case "paused":
-					m.state = Pause
+					m.state = printer.Pause
 				case "error":
-					m.state = Error
+					m.state = printer.Error
 				default:
-					m.state = Unknown
+					m.state = printer.Unknown
 				}
 
 				m.hasLoadedFile = printerObjects.PrintStats.State != "standby" &&
-					m.state != Error && m.state != Unknown
+					m.state != printer.Error && m.state != printer.Unknown
 
 				// Check if printer is illegally printing
-				if m.state == Printing && !printerShouldPrint {
+				if m.state == printer.Printing && !printerShouldPrint {
 					m.logger.Infoln("Printer should not print now!!")
 
 					progress := printerObjects.VirtualSDCard.Progress
@@ -355,7 +412,7 @@ func (m *Monitor) update() {
 					}
 
 					if m.config.ShouldCancelProgress > 0 && progress >= m.config.ShouldCancelProgress {
-						if m.state == Printing {
+						if m.state == printer.Printing {
 							m.logger.Infoln("Canceling")
 							err := CancelPrint(m.ctx)
 							if err != nil {
@@ -366,7 +423,7 @@ func (m *Monitor) update() {
 				}
 
 				// Pause printer if printer should be paused by monitor
-				if m.state == Printing && m.jobPausedByMonitor {
+				if m.state == printer.Printing && m.jobPausedByMonitor {
 					m.logger.Infoln("Pausing")
 
 					err := PausePrint(m.ctx)
@@ -389,7 +446,7 @@ func (m *Monitor) update() {
 				}
 
 				// Show warning countdown if printer will be paused
-				if m.state == Printing && !m.jobPausedByMonitor && !printerShouldPrint {
+				if m.state == printer.Printing && !m.jobPausedByMonitor && !printerShouldPrint {
 					remDuration := (m.config.NoPauseDuration - printDuration).Round(time.Second)
 
 					data := struct {
@@ -412,7 +469,7 @@ func (m *Monitor) update() {
 				// Resume print if allow print set to true
 				if m.jobPausedByMonitor && printerShouldPrint {
 
-					if m.state == Pause {
+					if m.state == printer.Pause {
 						m.logger.Infoln("Resuming")
 
 						err := ResumePrint(m.ctx)
@@ -484,4 +541,31 @@ func (m *Monitor) getLoadedFile(ctx context.Context) (*GCodeMetadata, error) {
 	}
 
 	return metaResponse.Result, nil
+}
+
+func (m *Monitor) LatestThumbnail(ctx context.Context, w io.Writer) (string, error) {
+	if m.latestJob == nil || m.latestJob.Metadata == nil || len(m.latestJob.Metadata.Thumbnails) == 0 {
+		return "", printer.ErrNoThumbnail
+	}
+
+	thumb := m.latestJob.Metadata.Thumbnails[len(m.latestJob.Metadata.Thumbnails)-1]
+
+	u := m.printerUrl.JoinPath("/server/files/gcodes").JoinPath(thumb.RelativePath)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if _, err := io.Copy(w, resp.Body); err != nil {
+		return "", err
+	}
+
+	return resp.Header.Get("Content-Type"), nil
 }

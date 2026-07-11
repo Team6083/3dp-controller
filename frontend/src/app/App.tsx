@@ -6,8 +6,7 @@ import Col from "react-bootstrap/Col"
 import Row from "react-bootstrap/Row"
 
 import PrinterCard from "./components/PrinterCard";
-import {convertPrinter} from "../types";
-import {MoonrakerPrinterState} from "../api";
+import {convertPrinter, PrinterState} from "../types";
 import {usePrintersQuery} from "./hooks/usePrintersQuery";
 import {PrintersAPIUrlBase} from "./printersAPIContext";
 import {getPrinterStateInfo, getPrinterStateKeyByValue} from "../utils";
@@ -24,8 +23,8 @@ function Home() {
         const data = queryData.data.map(convertPrinter);
 
         data.sort((a, b) => {
-            const aDisconnected = a.state === MoonrakerPrinterState.Disconnected;
-            const bDisconnected = b.state === MoonrakerPrinterState.Disconnected;
+            const aDisconnected = a.state === PrinterState.Disconnected;
+            const bDisconnected = b.state === PrinterState.Disconnected;
 
             if (aDisconnected && !bDisconnected) return 1;
             else if (!aDisconnected && bDisconnected) return -1;
@@ -36,13 +35,13 @@ function Home() {
     }, [queryData?.data]);
 
     const printerStat = useMemo(() => {
-        return printers.reduce<Map<MoonrakerPrinterState, number>>((prev, curr) => {
+        return printers.reduce<Map<PrinterState, number>>((prev, curr) => {
             const {state} = curr;
             const count = (prev.get(state) ?? 0) + 1;
             prev.set(state, count);
 
             return prev;
-        }, new Map<MoonrakerPrinterState, number>());
+        }, new Map<PrinterState, number>());
     }, [printers]);
 
     return (

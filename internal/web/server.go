@@ -2,7 +2,7 @@ package web
 
 import (
 	"3dp-controller/docs"
-	"3dp-controller/internal/moonraker"
+	"3dp-controller/internal/printer"
 	"context"
 	"errors"
 	"net/http"
@@ -22,12 +22,12 @@ type Server struct {
 	logger *zap.SugaredLogger
 	srv    *http.Server
 
-	monitors map[string]*moonraker.Monitor
+	monitors map[string]printer.Printer
 
 	ctx context.Context
 }
 
-func NewServer(ctx context.Context, isDevMode bool, logger *zap.SugaredLogger, monitors map[string]*moonraker.Monitor) *Server {
+func NewServer(ctx context.Context, isDevMode bool, logger *zap.SugaredLogger, monitors map[string]printer.Printer) *Server {
 	var engine *gin.Engine
 
 	if !isDevMode {

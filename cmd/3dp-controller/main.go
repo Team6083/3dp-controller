@@ -4,6 +4,7 @@ import (
 	"3dp-controller/internal/config"
 	"3dp-controller/internal/controller"
 	"3dp-controller/internal/moonraker"
+	"3dp-controller/internal/printer"
 	"3dp-controller/internal/web"
 	"bufio"
 	"context"
@@ -74,12 +75,12 @@ func main() {
 		panic(err)
 	}
 
-	monitors := make(map[string]*moonraker.Monitor)
+	monitors := make(map[string]printer.Printer)
 
 	ctx := context.Background()
 
 	for _, p := range cfg.Printers {
-		monConfig := moonraker.MonitorConfig{
+		monConfig := printer.MonitorConfig{
 			NoPauseDuration:      cfg.NoPauseDuration,
 			ShouldPauseProgress:  cfg.ShouldPauseProgress,
 			ShouldCancelProgress: cfg.ShouldCancelProgress,

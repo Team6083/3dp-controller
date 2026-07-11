@@ -1,8 +1,8 @@
-import {MoonrakerPrinterState} from "./api";
+import {Model3dpControllerInternalPrinterPrinterState as PrinterState} from "./api";
 
-export function getPrinterStateKeyByValue(value: MoonrakerPrinterState): string | undefined {
-    for (const key in MoonrakerPrinterState) {
-        if (MoonrakerPrinterState[key as keyof typeof MoonrakerPrinterState] === value) {
+export function getPrinterStateKeyByValue(value: PrinterState): string | undefined {
+    for (const key in PrinterState) {
+        if (PrinterState[key as keyof typeof PrinterState] === value) {
             return key;
         }
     }
@@ -16,34 +16,30 @@ export type PrinterStateInfo = {
     isDisconnected: boolean;
 }
 
-export function getPrinterStateInfo(state: MoonrakerPrinterState): PrinterStateInfo {
-    let stateText = getPrinterStateKeyByValue(state) ?? "Unknown";
+export function getPrinterStateInfo(state: PrinterState): PrinterStateInfo {
+    const stateText = getPrinterStateKeyByValue(state) ?? "Unknown";
     let isInError: boolean = false;
     let stateColor: string;
 
     switch (state) {
-        case MoonrakerPrinterState.Ready:
+        case PrinterState.Ready:
             stateColor = "dark";
             break
-        case MoonrakerPrinterState.Printing:
+        case PrinterState.Printing:
             stateColor = "primary";
             break;
-        case MoonrakerPrinterState.Pause:
+        case PrinterState.Pause:
             stateColor = "warning";
             break;
-        case MoonrakerPrinterState.KlippyShutdown:
-        case MoonrakerPrinterState.KlippyError:
-        case MoonrakerPrinterState.KlippyDisconnected:
-        case MoonrakerPrinterState.Error:
-        case MoonrakerPrinterState.InternalError:
+        case PrinterState.Error:
+        case PrinterState.InternalError:
             stateColor = "danger";
             isInError = true;
             break;
-        case MoonrakerPrinterState.PrePrint:
-        case MoonrakerPrinterState.KlippyStartup:
+        case PrinterState.PrePrint:
             stateColor = "info";
             break
-        case MoonrakerPrinterState.Disconnected:
+        case PrinterState.Disconnected:
         default:
             stateColor = "secondary";
     }
@@ -52,7 +48,7 @@ export function getPrinterStateInfo(state: MoonrakerPrinterState): PrinterStateI
         stateColor,
         stateText,
         isInError,
-        isDisconnected: (state === MoonrakerPrinterState.Disconnected),
+        isDisconnected: (state === PrinterState.Disconnected),
     }
 }
 

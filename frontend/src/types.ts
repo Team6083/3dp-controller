@@ -1,73 +1,49 @@
-import {max} from "@popperjs/core/lib/utils/math";
-
 import {
-    MoonrakerGCodeMetadata,
-    MoonrakerJob,
-    MoonrakerPrinterObjectPrintStats,
-    MoonrakerPrinterObjectVirtualSDCard,
-    MoonrakerPrinterState,
-    WebPrinter
+    InternalWebPrinter,
+    Model3dpControllerInternalPrinterErrorInfo,
+    Model3dpControllerInternalPrinterJob,
+    Model3dpControllerInternalPrinterPrinterState,
 } from "./api";
 import {getJobStatsColor, secondsToDurationString} from "./utils";
 
-
-export interface GCodeMetadata {
-    fileName: string;
-    estimatedTime?: number;
-    uuid: string;
-    hasThumb: boolean;
-}
-
-export function convertGCodeMetadata(gcodeMeta: MoonrakerGCodeMetadata): GCodeMetadata {
-    return {
-        fileName: gcodeMeta.filename!,
-        estimatedTime: gcodeMeta.estimated_time,
-        uuid: gcodeMeta.uuid!,
-        hasThumb: (gcodeMeta.thumbnails && gcodeMeta.thumbnails.length > 0) ?? false
-    }
-}
+export const PrinterState = Model3dpControllerInternalPrinterPrinterState;
+export type PrinterState = Model3dpControllerInternalPrinterPrinterState;
 
 export interface Job {
     jobId: string;
     status: string;
-    filename: string;
-    metadata?: GCodeMetadata;
+    name: string;
+    hasThumbnail: boolean;
+
+    progress?: number;
+    printDuration?: number;
+    totalDuration?: number;
+    estimatedRemainingSec?: number;
 }
 
-export function convertJob(job: MoonrakerJob): Job {
+export function convertJob(job: Model3dpControllerInternalPrinterJob): Job {
     return {
         jobId: job.job_id!,
         status: job.status!,
-        filename: job.filename!,
-        metadata: job.metadata ? convertGCodeMetadata(job.metadata) : undefined,
+        name: job.name!,
+        hasThumbnail: job.has_thumbnail ?? false,
+
+        progress: job.progress,
+        printDuration: job.print_duration,
+        totalDuration: job.total_duration,
+        estimatedRemainingSec: job.remaining_sec,
     }
 }
 
-export interface PrinterStats {
-    printDuration: number;
-    totalDuration: number;
-    filamentUsed: number;
-    state: string;
+export interface ErrorDetail {
+    code?: number;
+    message: string;
 }
 
-export function convertPrinterStats(printerStats: MoonrakerPrinterObjectPrintStats): PrinterStats {
+export function convertErrorDetail(errorDetail: Model3dpControllerInternalPrinterErrorInfo): ErrorDetail {
     return {
-        printDuration: printerStats.print_duration!,
-        totalDuration: printerStats.total_duration!,
-        filamentUsed: printerStats.filament_used!,
-        state: printerStats.state!,
-    }
-}
-
-export interface VirtualSD {
-    progress: number;
-    isActive: boolean;
-}
-
-export function convertVirtualSD(virtualSD: MoonrakerPrinterObjectVirtualSDCard): VirtualSD {
-    return {
-        progress: virtualSD.progress!,
-        isActive: virtualSD.is_active!,
+        code: errorDetail.code,
+        message: errorDetail.message!,
     }
 }
 
@@ -75,32 +51,32 @@ export interface Printer {
     key: string;
     name: string;
     url: string;
+    type: string;
 
     registeredJobId: string;
     allowNoRegisteredPrint: boolean;
     noPauseDuration: number;
 
-    state: MoonrakerPrinterState;
+    state: PrinterState;
     printerNotOpen: boolean;
     displayMessage?: string;
     errorMessage?: string;
     lastUpdateTime: Date;
 
-    printerStats?: PrinterStats;
-    virtualSD?: VirtualSD;
-
-    loadedFile?: GCodeMetadata;
-    latestJob?: Job;
+    job?: Job;
 }
 
-export function convertPrinter(printer: WebPrinter): Printer {
-    let displayMessage = printer.display_status?.message;
+export function convertPrinter(printer: InternalWebPrinter): Printer {
+    let displayMessage = printer.message;
     if (displayMessage?.trim() === "") displayMessage = undefined;
+
+    const errorDetail = printer.error_detail ? convertErrorDetail(printer.error_detail) : undefined;
 
     return {
         key: printer.key!,
         name: printer.name!,
         url: printer.url!,
+        type: printer.type!,
 
         registeredJobId: printer.registered_job_id ?? "",
         allowNoRegisteredPrint: printer.allow_no_register_print!,
@@ -109,14 +85,10 @@ export function convertPrinter(printer: WebPrinter): Printer {
         state: printer.state!,
         printerNotOpen: false,
         displayMessage,
-        errorMessage: printer.message,
+        errorMessage: errorDetail?.message ?? printer.message,
         lastUpdateTime: new Date(printer.last_update_time!),
 
-        printerStats: printer.printer_stats ? convertPrinterStats(printer.printer_stats) : undefined,
-        virtualSD: printer.virtual_sd_card ? convertVirtualSD(printer.virtual_sd_card) : undefined,
-
-        loadedFile: printer.loaded_file ? convertGCodeMetadata(printer.loaded_file) : undefined,
-        latestJob: printer.latest_job ? convertJob(printer.latest_job) : undefined
+        job: printer.job ? convertJob(printer.job) : undefined,
     }
 }
 
@@ -144,44 +116,33 @@ export type ActiveJobInfo = Omit<JobInfo, 'isActive'> & {
 }
 
 export function getLatestJobInfo(printer: Printer): ActiveJobInfo | JobInfo | undefined {
-    if (!printer.latestJob) return undefined;
+    const job = printer.job;
+    if (!job) return undefined;
 
-    let jobInfo: ActiveJobInfo | JobInfo = {
-        id: printer.latestJob.jobId,
-        fileName: printer.latestJob.filename,
-        status: printer.latestJob.status,
-        statusColor: getJobStatsColor(printer.latestJob.status),
+    const jobInfo: ActiveJobInfo | JobInfo = {
+        id: job.jobId,
+        fileName: job.name,
+        status: job.status,
+        statusColor: getJobStatsColor(job.status),
         isActive: false,
-        imageUrl: printer.latestJob.metadata?.hasThumb ? `/printers/${printer.key}/latest_thumb` : undefined,
+        imageUrl: job.hasThumbnail ? `/printers/${printer.key}/latest_thumb` : undefined,
     };
 
-    if (printer.loadedFile?.uuid === printer.latestJob.metadata?.uuid) {
-        const printTime = printer.printerStats ?
-            secondsToDurationString(printer.printerStats.printDuration) : undefined;
+    if (job.status === "in_progress") {
+        const printTime = typeof job.printDuration === "number" ?
+            secondsToDurationString(job.printDuration) : undefined;
 
-        const totalTime = printer.printerStats ?
-            secondsToDurationString(printer.printerStats.totalDuration) : undefined;
+        const totalTime = typeof job.totalDuration === "number" ?
+            secondsToDurationString(job.totalDuration) : undefined;
 
-        let estRemainSec: number | undefined;
-        if (printer.virtualSD) {
-            if (typeof printer.loadedFile?.estimatedTime === "number") {
-                const estimatedTime = printer.loadedFile.estimatedTime;
-                const progressTime = printer.virtualSD.progress * estimatedTime;
-                estRemainSec = estimatedTime - progressTime;
-            } else if (printer.printerStats && printer.virtualSD.progress > 0) {
-                const printDuration = printer.printerStats.printDuration;
-                let totalTime = printDuration / printer.virtualSD.progress;
-                estRemainSec = totalTime - printDuration;
-            }
-        }
-
+        let estRemainSec = job.estimatedRemainingSec;
         if (typeof estRemainSec === "number" && estRemainSec < 0) {
             estRemainSec = 0;
         }
 
-        const willPause = !printer.allowNoRegisteredPrint && jobInfo.id !== printer.registeredJobId;
-        const pauseRemainSec = printer.printerStats ?
-            max(printer.noPauseDuration - printer.printerStats.printDuration, 0) : undefined;
+        const willPause = !printer.allowNoRegisteredPrint && job.jobId !== printer.registeredJobId;
+        const pauseRemainSec = typeof job.printDuration === "number" ?
+            Math.max(printer.noPauseDuration - job.printDuration, 0) : undefined;
 
         return {
             ...jobInfo,

@@ -1,12 +1,13 @@
 package web
 
 import (
-	"3dp-controller/internal/moonraker"
+	"3dp-controller/internal/printer"
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 
@@ -80,45 +81,23 @@ type UpdatePrinterResponse struct {
 	AllowNoRegPrint *bool   `json:"allow_no_reg_print"`
 }
 
-func makePrinter(key string, m *moonraker.Monitor) Printer {
-	printerObjs := m.PrinterObjects()
-
-	var message string
-	var printerStats *moonraker.PrinterObjectPrintStats
-	var displayStatus *moonraker.PrinterObjectDisplayStatus
-	var virtualSDCard *moonraker.PrinterObjectVirtualSDCard
-
-	if printerObjs != nil {
-		if printerObjs.Webhooks.State != "ready" {
-			message = printerObjs.Webhooks.StateMessage
-		} else {
-			message = printerObjs.PrintStats.Message
-		}
-
-		printerStats = &printerObjs.PrintStats
-		displayStatus = &printerObjs.DisplayStatus
-		virtualSDCard = &printerObjs.VirtualSDCard
-	}
-
+func makePrinter(key string, p printer.Printer) Printer {
 	return Printer{
 		Key:  key,
-		Name: m.PrinterName(),
-		Url:  m.PrinterUrl(),
+		Name: p.PrinterName(),
+		Url:  p.PrinterUrl(),
+		Type: p.PrinterType(),
 
-		RegJobId:        m.RegisteredJobId(),
-		AllowNoRegPrint: m.AllowNoRegPrint(),
-		NoPauseDuration: m.Config().NoPauseDuration.Seconds(),
+		RegJobId:        p.RegisteredJobId(),
+		AllowNoRegPrint: p.AllowNoRegPrint(),
+		NoPauseDuration: p.Config().NoPauseDuration.Seconds(),
 
-		State:          m.State(),
-		Message:        message,
-		LastUpdateTime: m.LastUpdateTime().UnixMilli(),
+		State:          p.State(),
+		Message:        p.Message(),
+		ErrorDetail:    p.ErrorDetail(),
+		LastUpdateTime: p.LastUpdateTime().UnixMilli(),
 
-		PrinterStats:  printerStats,
-		DisplayStatus: displayStatus,
-		VirtualSDCard: virtualSDCard,
-
-		LoadedFile: m.LoadedFile(),
-		LatestJob:  m.LatestJob(),
+		Job: p.Job(),
 	}
 }
 
@@ -186,64 +165,46 @@ func (s *Server) UpdatePrinter(g *gin.Context) {
 func (s *Server) GetLatestThumbnail(g *gin.Context) {
 	printerKey := g.Param("key")
 
-	if m, ok := s.monitors[printerKey]; ok {
-		latestJob := m.LatestJob()
-		if latestJob == nil {
-			resp := APIErrorResp{
-				Error: "no latest job",
-			}
-			g.JSON(http.StatusNotFound, resp)
-			return
-		}
-
-		if len(latestJob.Metadata.Thumbnails) == 0 {
-			resp := APIErrorResp{
-				Error: "no thumbnails",
-			}
-			g.JSON(http.StatusNotFound, resp)
-			return
-		}
-
-		thumb := latestJob.Metadata.Thumbnails[len(latestJob.Metadata.Thumbnails)-1]
-
-		u, err := url.Parse(m.PrinterUrl())
-		if err != nil {
-			s.logger.Errorf("url parse error: %s", err.Error())
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		u = u.JoinPath("/server/files/gcodes").JoinPath(thumb.RelativePath)
-
-		ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
-		defer cancel()
-		req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
-		if err != nil {
-			s.logger.Errorf("create request error: %s", err.Error())
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			s.logger.Errorf("request error: %s", err.Error())
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		defer resp.Body.Close()
-
-		g.Status(http.StatusOK)
-		g.Header("Context-Length", fmt.Sprintf("%d", resp.ContentLength))
-		g.Header("Content-Type", resp.Header.Get("Content-Type"))
-
-		if _, err = io.Copy(g.Writer, resp.Body); err != nil {
-			s.logger.Errorf("copy error: %s", err.Error())
-		}
-	} else {
+	p, ok := s.monitors[printerKey]
+	if !ok {
 		resp := APIErrorResp{
 			Error: "printer not found",
 		}
 		g.JSON(http.StatusNotFound, resp)
+		return
+	}
+
+	t, ok := p.(printer.Thumbnailer)
+	if !ok {
+		resp := APIErrorResp{
+			Error: "thumbnails not supported by this printer",
+		}
+		g.JSON(http.StatusNotImplemented, resp)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
+	defer cancel()
+
+	var buf bytes.Buffer
+	contentType, err := t.LatestThumbnail(ctx, &buf)
+	if errors.Is(err, printer.ErrNoThumbnail) {
+		resp := APIErrorResp{
+			Error: "no thumbnail available",
+		}
+		g.JSON(http.StatusNotFound, resp)
+		return
+	} else if err != nil {
+		s.logger.Errorf("get latest thumbnail error: %s", err.Error())
+		g.Status(http.StatusInternalServerError)
+		return
+	}
+
+	g.Status(http.StatusOK)
+	g.Header("Content-Length", fmt.Sprintf("%d", buf.Len()))
+	g.Header("Content-Type", contentType)
+
+	if _, err := io.Copy(g.Writer, &buf); err != nil {
+		s.logger.Errorf("copy error: %s", err.Error())
 	}
 }
