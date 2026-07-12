@@ -94,18 +94,6 @@ func (m *Monitor) LastUpdateTime() time.Time {
 	return m.lastUpdateTime
 }
 
-func (m *Monitor) PrinterObjects() *MonitorPrinterObjects {
-	return m.printerObjects
-}
-
-func (m *Monitor) LatestJob() *Job {
-	return m.latestJob
-}
-
-func (m *Monitor) LoadedFile() *GCodeMetadata {
-	return m.loadedFile
-}
-
 func (m *Monitor) Job() *printer.Job {
 	if m.latestJob == nil {
 		return nil
@@ -138,17 +126,34 @@ func (m *Monitor) Job() *printer.Job {
 		progress := m.printerObjects.VirtualSDCard.Progress
 		j.Progress = &progress
 
-		printDuration := printer.Seconds(m.printerObjects.PrintStats.GetPrintDuration().Seconds())
+		printDurationSec := m.printerObjects.PrintStats.GetPrintDuration().Seconds()
+		printDuration := printer.Seconds(printDurationSec)
 		j.PrintDuration = &printDuration
 
 		totalDuration := printer.Seconds(m.printerObjects.PrintStats.GetTotalDuration().Seconds())
 		j.TotalDuration = &totalDuration
 
-		remaining := totalDuration - printDuration
-		if remaining < 0 {
-			remaining = 0
+		var estRemainSec float64
+		haveEstimate := false
+
+		if m.loadedFile != nil && m.loadedFile.EstimatedTime != nil {
+			estimatedTime := float64(*m.loadedFile.EstimatedTime)
+			estRemainSec = estimatedTime - float64(progress)*estimatedTime
+			haveEstimate = true
+		} else if progress > 0 {
+			totalTime := printDurationSec / float64(progress)
+			estRemainSec = totalTime - printDurationSec
+			haveEstimate = true
 		}
-		j.EstimatedRemaining = &remaining
+
+		if haveEstimate {
+			if estRemainSec < 0 {
+				estRemainSec = 0
+			}
+
+			remaining := printer.Seconds(estRemainSec)
+			j.EstimatedRemaining = &remaining
+		}
 	}
 
 	return j
