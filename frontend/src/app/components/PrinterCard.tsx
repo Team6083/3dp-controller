@@ -4,8 +4,7 @@ import Badge from "react-bootstrap/Badge";
 import Button from "react-bootstrap/Button"
 import Card from "react-bootstrap/Card";
 
-import {getLatestJobInfo, Printer} from "../../types";
-import {MoonrakerPrinterState} from "../../api";
+import {getLatestJobInfo, Printer, PrinterState} from "../../types";
 import {getPrinterStateInfo, secondsToDurationString} from "../../utils";
 
 type PrinterCardProps = {
@@ -23,11 +22,11 @@ function PrinterCard({printer, apiURLBase}: PrinterCardProps) {
         const info = getPrinterStateInfo(printer.state);
         let {stateText, stateColor} = info;
 
-        if (printer.state === MoonrakerPrinterState.Ready) {
-            if (printer.printerStats?.state === "complete") {
+        if (printer.state === PrinterState.Ready) {
+            if (printer.job?.status === "completed") {
                 stateText = "Complete";
                 stateColor = "success";
-            } else if (printer.printerStats?.state === "cancelled") {
+            } else if (printer.job?.status === "cancelled") {
                 stateText = "Cancelled";
             }
         }
@@ -38,10 +37,10 @@ function PrinterCard({printer, apiURLBase}: PrinterCardProps) {
             isPrinterDisconnected: info.isDisconnected,
             isPrinterInErrorState: info.isInError,
         }
-    }, [printer.state, printer.printerStats?.state]);
+    }, [printer.state, printer.job?.status]);
 
-    const sdPercent = printer.virtualSD && printer.virtualSD.isActive ?
-        (printer.virtualSD.progress * 100).toFixed(1) + "%" : undefined;
+    const sdPercent = typeof printer.job?.progress === "number" ?
+        (printer.job.progress * 100).toFixed(1) + "%" : undefined;
 
     const jobInfo = useMemo(() => {
         return getLatestJobInfo(printer);

@@ -2,7 +2,7 @@ package controller
 
 import (
 	"3dp-controller/internal/controller/api"
-	"3dp-controller/internal/moonraker"
+	"3dp-controller/internal/printer"
 	"3dp-controller/internal/util"
 	"context"
 	"errors"
@@ -17,14 +17,14 @@ type Connector struct {
 	hubId         string
 	logger        *zap.SugaredLogger
 
-	monitors        map[string]*moonraker.Monitor
+	monitors        map[string]printer.Printer
 	controlSettings map[string]api.ControlSetting
 
 	ctx        context.Context
 	cancelFunc context.CancelFunc
 }
 
-func NewConnector(controllerUrl *url.URL, hubId string, logger *zap.SugaredLogger, monitors map[string]*moonraker.Monitor) *Connector {
+func NewConnector(controllerUrl *url.URL, hubId string, logger *zap.SugaredLogger, monitors map[string]printer.Printer) *Connector {
 	return &Connector{
 		controllerUrl:   controllerUrl,
 		hubId:           hubId,
@@ -71,13 +71,13 @@ func (c *Connector) update() {
 	var updates []api.UpdateMessage
 
 	for key, monitor := range c.monitors {
-		latestJob := monitor.LatestJob()
+		job := monitor.Job()
 
 		var jobReport api.JobReport
-		if latestJob != nil {
+		if job != nil {
 			// build jobStatus
 			var jobStatus api.ReportJobStatus
-			switch latestJob.Status {
+			switch job.Status {
 			case "in_progress":
 				jobStatus = api.ReportInProgress
 			case "completed":
@@ -88,27 +88,29 @@ func (c *Connector) update() {
 
 			// build JobReport
 			jobReport = api.JobReport{
-				Id:     latestJob.JobId,
+				Id:     job.JobId,
 				Status: jobStatus,
 
-				ContentId: latestJob.Metadata.UUID,
-				StartTime: time.UnixMilli(int64(latestJob.StartTime * 1000)),
+				ContentId: job.ContentId,
+			}
+
+			if job.StartTime != nil {
+				jobReport.StartTime = *job.StartTime
 			}
 		}
 
 		// build status
 		var status api.Status
 		switch monitor.State() {
-		case moonraker.Ready:
+		case printer.Ready:
 			status = api.StatusIdle
-		case moonraker.PrePrint, moonraker.Printing:
+		case printer.PrePrint, printer.Printing:
 			status = api.StatusRunning
-		case moonraker.Pause:
+		case printer.Pause:
 			status = api.StatusPaused
-		case moonraker.Error, moonraker.InternalError,
-			moonraker.KlippyError, moonraker.KlippyShutdown, moonraker.KlippyDisconnected:
+		case printer.Error, printer.InternalError:
 			status = api.StatusError
-		case moonraker.Disconnected:
+		case printer.Disconnected:
 			status = api.StatusDisconnected
 		default:
 			status = api.StatusUnknown
