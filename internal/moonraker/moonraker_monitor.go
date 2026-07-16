@@ -122,7 +122,10 @@ func (m *Monitor) Job() *printer.Job {
 		j.EndTime = &t
 	}
 
-	if job.Status == "in_progress" && m.printerObjects != nil {
+	loadedFileMatchesJob := m.loadedFile != nil && job.Metadata != nil &&
+		m.loadedFile.UUID == job.Metadata.UUID
+
+	if job.Status == "in_progress" && m.printerObjects != nil && loadedFileMatchesJob {
 		progress := m.printerObjects.VirtualSDCard.Progress
 		j.Progress = &progress
 
