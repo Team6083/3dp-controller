@@ -5,12 +5,11 @@
 ## 架構概覽
 
 ```
-Moonraker Printer(s)
-      │  poll (2s / 5s)
+Printer backend(s)（Moonraker/Klipper, ...）
+      │  poll (2s / 5s)，實作 internal/printer.Printer 介面
       ▼
-internal/moonraker.Monitor  ── 追蹤印表機狀態、依設定自動 暫停/取消未登記的列印
-      │                    │
-      ▼                    ▼
+      ├──────────────────────┐
+      ▼                      ▼
 internal/web            internal/controller.Connector（可選）
 （REST API +              每 2s 回報狀態給上層 hub，
  前端靜態檔服務）           並接收 hub 回傳的控制指令
@@ -20,13 +19,16 @@ frontend（React + Vite）
 每 2.5s 呼叫 GET /api/v1/printers 顯示印表機儀表板
 ```
 
+`internal/web`、`internal/controller`、`cmd/3dp-controller` 皆只依賴 `internal/printer.Printer` 這個 backend-agnostic 介面（見 `internal/printer/printer.go`），而不直接依賴 `*moonraker.Monitor`，方便未來加入其他印表機廠牌的實作。
+
 ## 目錄結構
 
 | 路徑 | 說明 |
 | --- | --- |
 | `cmd/3dp-controller` | 程式進入點（`main.go`） |
 | `internal/config` | 讀取並解析 `config.yaml` |
-| `internal/moonraker` | Moonraker API client + 印表機狀態輪詢/狀態機 |
+| `internal/printer` | 印表機 backend 的共用介面（`Printer`、`Thumbnailer`、`RawReporter`）與中立 DTO（`Job`、`ErrorInfo` 等），供各 backend 實作、web/controller 依賴 |
+| `internal/moonraker` | Moonraker API client + 印表機狀態輪詢/狀態機，實作 `internal/printer.Printer` |
 | `internal/controller` | 選用的上層 controller/hub 回報邏輯 |
 | `internal/web` | Gin REST API + 前端靜態檔（SPA）服務 |
 | `internal/util` | 共用工具（如網路錯誤判斷） |
