@@ -1,4 +1,4 @@
-import {Model3dpControllerInternalPrinterPrinterState as PrinterState} from "./api";
+import {PrinterPrinterState as PrinterState} from "./api";
 
 export function getPrinterStateKeyByValue(value: PrinterState): string | undefined {
     for (const key in PrinterState) {

@@ -1,13 +1,13 @@
 import {
-    InternalWebPrinter,
-    Model3dpControllerInternalPrinterErrorInfo,
-    Model3dpControllerInternalPrinterJob,
-    Model3dpControllerInternalPrinterPrinterState,
+    WebPrinter,
+    PrinterErrorInfo,
+    PrinterJob,
+    PrinterPrinterState,
 } from "./api";
 import {getJobStatsColor, secondsToDurationString} from "./utils";
 
-export const PrinterState = Model3dpControllerInternalPrinterPrinterState;
-export type PrinterState = Model3dpControllerInternalPrinterPrinterState;
+export const PrinterState = PrinterPrinterState;
+export type PrinterState = PrinterPrinterState;
 
 export interface Job {
     jobId: string;
@@ -21,7 +21,7 @@ export interface Job {
     estimatedRemainingSec?: number;
 }
 
-export function convertJob(job: Model3dpControllerInternalPrinterJob): Job {
+export function convertJob(job: PrinterJob): Job {
     return {
         jobId: job.job_id!,
         status: job.status!,
@@ -40,7 +40,7 @@ export interface ErrorDetail {
     message: string;
 }
 
-export function convertErrorDetail(errorDetail: Model3dpControllerInternalPrinterErrorInfo): ErrorDetail {
+export function convertErrorDetail(errorDetail: PrinterErrorInfo): ErrorDetail {
     return {
         code: errorDetail.code,
         message: errorDetail.message!,
@@ -66,7 +66,7 @@ export interface Printer {
     job?: Job;
 }
 
-export function convertPrinter(printer: InternalWebPrinter): Printer {
+export function convertPrinter(printer: WebPrinter): Printer {
     let displayMessage = printer.message;
     if (displayMessage?.trim() === "") displayMessage = undefined;
 

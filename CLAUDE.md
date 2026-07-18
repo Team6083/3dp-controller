@@ -32,10 +32,11 @@ Printer(s) → `internal/moonraker.Monitor`（輪詢 + 狀態機）→ 同時被
 
 - **`docs/` 與 `config.yaml` 都是 gitignore**：本地開發前必須先手動跑一次 `swag init`；`config.yaml` 需自行建立（可能含機敏資訊，例如印表機帳密，切勿提交）。
 - **`frontend/src/api/**` 是自動產生的**（由 `docs/swagger.yaml` 經 openapi-generator 產生 TypeScript axios client），**不要手動編輯**。改 API 的流程：改 `internal/web/api.go` 的 swag 註解 → 重新 `swag init` → 在 `frontend/` 跑 `npm run api-gen`。
-- swag 的 handler 註解在 `internal/web`（`internal/` 目錄），因此 `swag init` 必須加 `--parseInternal`；main 檔案也已移到 `cmd/3dp-controller/main.go`，需加 `-g cmd/3dp-controller/main.go`。完整指令：
+- swag 預設會掃描整個 module（含 `internal/`），不需要 `--parseInternal`/`--parseDependency`；main 檔案在 `cmd/3dp-controller/main.go`，需加 `-g cmd/3dp-controller/main.go`。完整指令：
   ```
-  swag init -g cmd/3dp-controller/main.go --parseDependency --parseInternal
+  swag init -g cmd/3dp-controller/main.go
   ```
+  注意：加不加這兩個 flag 都能成功執行，但產生的 model 名稱不同（例如加 flag 會是 `internal_web.Printer`、不加是 `web.Printer`），進而影響 `npm run api-gen` 產生的 TS 型別名稱（`InternalWebPrinter` vs `WebPrinter`）。務必和 `frontend/src/types.ts`/`utils.ts` 目前 import 的名稱（`WebPrinter`/`PrinterJob`/`PrinterErrorInfo`/`PrinterPrinterState`，即不加 flag 的版本）保持一致，否則前端會編譯失敗。
 - module 名稱為 `3dp-controller`（對應 repo 名稱），所有內部 import 皆為 `3dp-controller/internal/...`。
 - 目前沒有 Makefile、CI（無 `.github/workflows`）、Go linter 設定；前端有基本的 ESLint（`.eslintrc.cjs`）。
 
@@ -43,7 +44,7 @@ Printer(s) → `internal/moonraker.Monitor`（輪詢 + 狀態機）→ 同時被
 
 ```bash
 # 後端
-swag init -g cmd/3dp-controller/main.go --parseDependency --parseInternal
+swag init -g cmd/3dp-controller/main.go
 go build ./cmd/3dp-controller
 dev=1 go run ./cmd/3dp-controller   # dev 模式：開發用 logger + /swagger UI
 go vet ./...
